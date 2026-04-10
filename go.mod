@@ -10,7 +10,6 @@ replace github.com/AnqorDX/dispatch => ../dispatch
 replace github.com/AnqorDX/pipeline => ../pipeline
 
 require (
-	github.com/AnqorDX/vdb-core v0.0.0-00010101000000-000000000000
 
 	// go-sqlmock provides a database/sql mock used in mysqlengine/schema_test.go
 	// to unit-test the SchemaProvider without a real MySQL instance. DRV-001
@@ -19,7 +18,6 @@ require (
 	// it into a test sub-module would be the strict alternative, but the test
 	// surface is small enough that a direct dependency is acceptable here.
 	github.com/DATA-DOG/go-sqlmock v1.5.2
-
 	github.com/dolthub/go-mysql-server v0.20.0
 
 	// dolthub/vitess is a direct dependency of mysqlengine because GMS v0.20.x
@@ -30,14 +28,11 @@ require (
 	// Dolthub publishes vitess as a first-class sibling of go-mysql-server —
 	// it is an unavoidable part of the GMS v0.20.x public API surface.
 	github.com/dolthub/vitess v0.0.0-20250512224608-8fb9c6ea092c
-
 	github.com/go-sql-driver/mysql v1.9.3
 )
 
 require (
 	filippo.io/edwards25519 v1.1.0 // indirect
-	github.com/AnqorDX/dispatch v0.0.0-20260409143604-e130b1d038c4 // indirect
-	github.com/AnqorDX/pipeline v0.0.0-20260409143359-d1c514bf669f // indirect
 	github.com/cespare/xxhash/v2 v2.2.0 // indirect
 	github.com/dolthub/flatbuffers/v23 v23.3.3-dh.2 // indirect
 	github.com/dolthub/go-icu-regex v0.0.0-20250327004329-6799764f2dad // indirect
@@ -63,5 +58,4 @@ require (
 	google.golang.org/grpc v1.53.0 // indirect
 	google.golang.org/protobuf v1.28.1 // indirect
 	gopkg.in/src-d/go-errors.v1 v1.0.0 // indirect
-	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
