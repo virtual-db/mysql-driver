@@ -8,6 +8,8 @@ import (
 	"testing"
 
 	"github.com/DATA-DOG/go-sqlmock"
+
+	"github.com/AnqorDX/vdb-mysql-driver/internal/schema"
 )
 
 // newMockDB is a helper that returns a *sql.DB backed by sqlmock and the
@@ -23,7 +25,7 @@ func newMockDB(t *testing.T) (*sql.DB, sqlmock.Sqlmock) {
 }
 
 // ---------------------------------------------------------------------------
-// GetSchema — column names
+// schema.NewSQLProvider — GetSchema
 // ---------------------------------------------------------------------------
 
 func TestGetSchema_ColumnsReturnedInOrdinalOrder(t *testing.T) {
@@ -42,7 +44,7 @@ func TestGetSchema_ColumnsReturnedInOrdinalOrder(t *testing.T) {
 		WithArgs("testdb", "users").
 		WillReturnRows(pkRows)
 
-	p := newSQLSchemaProvider(db, "testdb")
+	p := schema.NewSQLProvider(db, "testdb")
 	cols, _, err := p.GetSchema("users")
 
 	if err != nil {
@@ -77,7 +79,7 @@ func TestGetSchema_PrimaryKeyColumnIdentified(t *testing.T) {
 		WithArgs("testdb", "users").
 		WillReturnRows(pkRows)
 
-	p := newSQLSchemaProvider(db, "testdb")
+	p := schema.NewSQLProvider(db, "testdb")
 	_, pk, err := p.GetSchema("users")
 
 	if err != nil {
@@ -99,7 +101,7 @@ func TestGetSchema_MissingTable_ReturnsError(t *testing.T) {
 		WithArgs("testdb", "nonexistent_table").
 		WillReturnRows(colRows)
 
-	p := newSQLSchemaProvider(db, "testdb")
+	p := schema.NewSQLProvider(db, "testdb")
 	_, _, err := p.GetSchema("nonexistent_table")
 
 	if err == nil {
@@ -128,7 +130,7 @@ func TestGetSchema_NoPrimaryKey_ReturnsEmptyPKColAndNoError(t *testing.T) {
 		WithArgs("testdb", "log_entries").
 		WillReturnRows(pkRows)
 
-	p := newSQLSchemaProvider(db, "testdb")
+	p := schema.NewSQLProvider(db, "testdb")
 	cols, pk, err := p.GetSchema("log_entries")
 
 	if err != nil {
@@ -153,7 +155,7 @@ func TestGetSchema_DatabaseError_ReturnsWrappedError(t *testing.T) {
 		WithArgs("testdb", "broken").
 		WillReturnError(dbErr)
 
-	p := newSQLSchemaProvider(db, "testdb")
+	p := schema.NewSQLProvider(db, "testdb")
 	_, _, err := p.GetSchema("broken")
 
 	if err == nil {
@@ -192,7 +194,7 @@ func TestGetSchema_ConcurrentCallsDoNotRace(t *testing.T) {
 				WithArgs("testdb", "shared").
 				WillReturnRows(pkRows)
 
-			p := newSQLSchemaProvider(db, "testdb")
+			p := schema.NewSQLProvider(db, "testdb")
 			cols, _, err := p.GetSchema("shared")
 			if err != nil {
 				errs <- err
@@ -214,27 +216,27 @@ func TestGetSchema_ConcurrentCallsDoNotRace(t *testing.T) {
 
 func TestNewSQLSchemaProvider_ReturnsSchemaProvider(t *testing.T) {
 	db, _ := newMockDB(t)
-	var _ schemaProvider = newSQLSchemaProvider(db, "testdb")
+	var _ schema.Provider = schema.NewSQLProvider(db, "testdb")
 }
 
 // ---------------------------------------------------------------------------
-// toGMSSchema
+// schema.ToGMSSchema
 // ---------------------------------------------------------------------------
 
 func TestToGMSSchema_LengthMatchesColumnCount(t *testing.T) {
 	cols := []string{"id", "name", "created_at"}
-	schema := toGMSSchema("orders", cols)
+	gmsSchema := schema.ToGMSSchema("orders", cols)
 
-	if len(schema) != len(cols) {
-		t.Fatalf("schema length: got %d, want %d", len(schema), len(cols))
+	if len(gmsSchema) != len(cols) {
+		t.Fatalf("schema length: got %d, want %d", len(gmsSchema), len(cols))
 	}
 }
 
 func TestToGMSSchema_ColumnNamesPreserved(t *testing.T) {
 	cols := []string{"sku", "price", "stock"}
-	schema := toGMSSchema("products", cols)
+	gmsSchema := schema.ToGMSSchema("products", cols)
 
-	for i, col := range schema {
+	for i, col := range gmsSchema {
 		if col.Name != cols[i] {
 			t.Errorf("schema[%d].Name: got %q, want %q", i, col.Name, cols[i])
 		}
@@ -242,9 +244,9 @@ func TestToGMSSchema_ColumnNamesPreserved(t *testing.T) {
 }
 
 func TestToGMSSchema_SourceSetToTableName(t *testing.T) {
-	schema := toGMSSchema("users", []string{"id", "email"})
+	gmsSchema := schema.ToGMSSchema("users", []string{"id", "email"})
 
-	for i, col := range schema {
+	for i, col := range gmsSchema {
 		if col.Source != "users" {
 			t.Errorf("schema[%d].Source: got %q, want %q", i, col.Source, "users")
 		}
@@ -252,9 +254,9 @@ func TestToGMSSchema_SourceSetToTableName(t *testing.T) {
 }
 
 func TestToGMSSchema_AllColumnsNullable(t *testing.T) {
-	schema := toGMSSchema("events", []string{"id", "payload"})
+	gmsSchema := schema.ToGMSSchema("events", []string{"id", "payload"})
 
-	for i, col := range schema {
+	for i, col := range gmsSchema {
 		if !col.Nullable {
 			t.Errorf("schema[%d] (%q): expected Nullable=true, got false", i, col.Name)
 		}
@@ -262,22 +264,176 @@ func TestToGMSSchema_AllColumnsNullable(t *testing.T) {
 }
 
 func TestToGMSSchema_EmptyColumns_ReturnsEmptySchema(t *testing.T) {
-	schema := toGMSSchema("empty_table", nil)
+	gmsSchema := schema.ToGMSSchema("empty_table", nil)
 
-	if schema == nil {
-		t.Fatal("toGMSSchema returned nil schema for empty column list")
+	if gmsSchema == nil {
+		t.Fatal("ToGMSSchema returned nil schema for empty column list")
 	}
-	if len(schema) != 0 {
-		t.Errorf("schema length: got %d, want 0", len(schema))
+	if len(gmsSchema) != 0 {
+		t.Errorf("schema length: got %d, want 0", len(gmsSchema))
 	}
 }
 
 func TestToGMSSchema_TypeIsNonNil(t *testing.T) {
-	schema := toGMSSchema("accounts", []string{"id", "balance", "name"})
+	gmsSchema := schema.ToGMSSchema("accounts", []string{"id", "balance", "name"})
 
-	for i, col := range schema {
+	for i, col := range gmsSchema {
 		if col.Type == nil {
 			t.Errorf("schema[%d] (%q): Type is nil", i, col.Name)
 		}
+	}
+}
+
+// ---------------------------------------------------------------------------
+// schema.NotifyingProvider (moved from driver_test.go)
+// ---------------------------------------------------------------------------
+
+func TestWrappedSchemaProvider_OnSuccess_CallsOnLoad(t *testing.T) {
+	var called bool
+	var gotTable string
+	var gotCols []string
+	var gotPK string
+
+	inner := &stubSchemaProvider{
+		cols:  []string{"id", "name", "email"},
+		pkCol: "id",
+	}
+
+	listener := &stubEventBridge{
+		schemaLoaded: func(table string, cols []string, pkCol string) {
+			called = true
+			gotTable = table
+			gotCols = cols
+			gotPK = pkCol
+		},
+	}
+
+	w := schema.NewNotifyingProvider(inner, listener)
+
+	cols, pk, err := w.GetSchema("users")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !called {
+		t.Fatal("SchemaLoaded was not called on a successful GetSchema")
+	}
+	if gotTable != "users" {
+		t.Errorf("listener table: got %q, want %q", gotTable, "users")
+	}
+	wantCols := []string{"id", "name", "email"}
+	if len(gotCols) != len(wantCols) {
+		t.Fatalf("listener cols length: got %d, want %d", len(gotCols), len(wantCols))
+	}
+	for i, c := range wantCols {
+		if gotCols[i] != c {
+			t.Errorf("listener cols[%d]: got %q, want %q", i, gotCols[i], c)
+		}
+	}
+	if gotPK != "id" {
+		t.Errorf("listener pkCol: got %q, want %q", gotPK, "id")
+	}
+	if len(cols) != len(wantCols) {
+		t.Fatalf("caller cols length: got %d, want %d", len(cols), len(wantCols))
+	}
+	if pk != "id" {
+		t.Errorf("caller pk: got %q, want %q", pk, "id")
+	}
+}
+
+func TestWrappedSchemaProvider_OnError_SuppressesOnLoad(t *testing.T) {
+	innerErr := errors.New("table not found in source database")
+	inner := &stubSchemaProvider{err: innerErr}
+
+	var called bool
+	listener := &stubEventBridge{
+		schemaLoaded: func(_ string, _ []string, _ string) { called = true },
+	}
+
+	w := schema.NewNotifyingProvider(inner, listener)
+
+	_, _, err := w.GetSchema("missing_table")
+	if err == nil {
+		t.Fatal("expected non-nil error, got nil")
+	}
+	if !errors.Is(err, innerErr) {
+		t.Errorf("error chain: got %v, expected it to wrap %v", err, innerErr)
+	}
+	if called {
+		t.Fatal("SchemaLoaded was called despite an error from the inner provider")
+	}
+}
+
+func TestWrappedSchemaProvider_NilOnLoad_DoesNotPanic(t *testing.T) {
+	inner := &stubSchemaProvider{cols: []string{"id"}, pkCol: "id"}
+	w := schema.NewNotifyingProvider(inner, nil)
+
+	defer func() {
+		if r := recover(); r != nil {
+			t.Fatalf("NotifyingProvider panicked with nil listener: %v", r)
+		}
+	}()
+
+	cols, pk, err := w.GetSchema("accounts")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(cols) == 0 {
+		t.Error("expected non-empty column slice, got empty")
+	}
+	if pk != "id" {
+		t.Errorf("pk: got %q, want %q", pk, "id")
+	}
+}
+
+func TestWrappedSchemaProvider_ReturnValuesMatchInner(t *testing.T) {
+	inner := &stubSchemaProvider{
+		cols:  []string{"sku", "price", "stock"},
+		pkCol: "sku",
+	}
+	listener := &stubEventBridge{}
+
+	w := schema.NewNotifyingProvider(inner, listener)
+
+	cols, pk, err := w.GetSchema("products")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	wantCols := []string{"sku", "price", "stock"}
+	if len(cols) != len(wantCols) {
+		t.Fatalf("cols length: got %d, want %d", len(cols), len(wantCols))
+	}
+	for i, c := range wantCols {
+		if cols[i] != c {
+			t.Errorf("cols[%d]: got %q, want %q", i, cols[i], c)
+		}
+	}
+	if pk != "sku" {
+		t.Errorf("pk: got %q, want %q", pk, "sku")
+	}
+}
+
+func TestWrappedSchemaProvider_NoPrimaryKey_PassedThrough(t *testing.T) {
+	inner := &stubSchemaProvider{
+		cols:  []string{"event_id", "message"},
+		pkCol: "",
+	}
+	var gotPK = "SENTINEL"
+	listener := &stubEventBridge{
+		schemaLoaded: func(_ string, _ []string, pkCol string) {
+			gotPK = pkCol
+		},
+	}
+
+	w := schema.NewNotifyingProvider(inner, listener)
+
+	_, pk, err := w.GetSchema("log_entries")
+	if err != nil {
+		t.Fatalf("unexpected error for table with no pk: %v", err)
+	}
+	if pk != "" {
+		t.Errorf("caller pk: got %q, want empty string", pk)
+	}
+	if gotPK != "" {
+		t.Errorf("listener pkCol: got %q, want empty string", gotPK)
 	}
 }

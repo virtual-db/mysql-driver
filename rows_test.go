@@ -4,6 +4,7 @@ import (
 	"errors"
 	"testing"
 
+	"github.com/AnqorDX/vdb-mysql-driver/internal/gms/rows"
 	gmssql "github.com/dolthub/go-mysql-server/sql"
 )
 
@@ -14,13 +15,13 @@ func makeTestContext(t *testing.T) *gmssql.Context {
 }
 
 // ---------------------------------------------------------------------------
-// rowToMap
+// RowToMap
 // ---------------------------------------------------------------------------
 
 func TestRowToMap_RoundTrip(t *testing.T) {
 	cols := []string{"id", "name", "balance"}
 	row := gmssql.Row{42, "alice", 99.5}
-	got := rowToMap(row, cols)
+	got := rows.RowToMap(row, cols)
 
 	if got["id"] != 42 {
 		t.Errorf("id: got %v, want 42", got["id"])
@@ -36,20 +37,20 @@ func TestRowToMap_RoundTrip(t *testing.T) {
 func TestRowToMap_PanicsOnMismatch(t *testing.T) {
 	defer func() {
 		if r := recover(); r == nil {
-			t.Fatal("rowToMap did not panic on column count mismatch")
+			t.Fatal("RowToMap did not panic on column count mismatch")
 		}
 	}()
-	rowToMap(gmssql.Row{1, 2}, []string{"only_one_col"})
+	rows.RowToMap(gmssql.Row{1, 2}, []string{"only_one_col"})
 }
 
 // ---------------------------------------------------------------------------
-// mapToRow
+// MapToRow
 // ---------------------------------------------------------------------------
 
 func TestMapToRow_IsInverseOfRowToMap(t *testing.T) {
 	record := map[string]any{"id": 1, "name": "bob"}
 	cols := []string{"id", "name"}
-	row := mapToRow(record, cols)
+	row := rows.MapToRow(record, cols)
 
 	if row[0] != 1 {
 		t.Errorf("row[0]: got %v, want 1", row[0])
@@ -62,7 +63,7 @@ func TestMapToRow_IsInverseOfRowToMap(t *testing.T) {
 func TestMapToRow_PreservesColumnOrdering(t *testing.T) {
 	cols := []string{"c", "b", "a"}
 	record := map[string]any{"a": 1, "b": 2, "c": 3}
-	row := mapToRow(record, cols)
+	row := rows.MapToRow(record, cols)
 
 	if row[0] != 3 { // c
 		t.Errorf("row[0] (c): got %v, want 3", row[0])
@@ -76,7 +77,7 @@ func TestMapToRow_PreservesColumnOrdering(t *testing.T) {
 }
 
 // ---------------------------------------------------------------------------
-// schemaColumns
+// SchemaColumns
 // ---------------------------------------------------------------------------
 
 func TestSchemaColumns_ExtractsNames(t *testing.T) {
@@ -85,7 +86,7 @@ func TestSchemaColumns_ExtractsNames(t *testing.T) {
 		{Name: "title"},
 		{Name: "created_at"},
 	}
-	cols := schemaColumns(schema)
+	cols := rows.SchemaColumns(schema)
 	want := []string{"id", "title", "created_at"}
 	if len(cols) != len(want) {
 		t.Fatalf("length: got %d, want %d", len(cols), len(want))
@@ -103,8 +104,8 @@ func TestSchemaColumns_ExtractsNames(t *testing.T) {
 
 func TestFetchRows_InvokesRowsFetchedCallback(t *testing.T) {
 	var called bool
-	cbs := fullCallbacks()
-	cbs.rowsFetched = func(_ uint32, table string, recs []map[string]any) ([]map[string]any, error) {
+	b := fullBridge()
+	b.rowsFetched = func(_ uint32, table string, recs []map[string]any) ([]map[string]any, error) {
 		called = true
 		if table != "orders" {
 			t.Errorf("table: got %q, want %q", table, "orders")
@@ -115,11 +116,11 @@ func TestFetchRows_InvokesRowsFetchedCallback(t *testing.T) {
 		return recs, nil
 	}
 
-	p := newGMSRowProvider(&stubSchemaProvider{cols: []string{"id", "val"}, pkCol: "id"}, cbs)
+	p := rows.NewGMSProvider(b)
 	ctx := makeTestContext(t)
-	rows := []gmssql.Row{{1, "x"}, {2, "y"}}
+	rawRows := []gmssql.Row{{1, "x"}, {2, "y"}}
 	schema := gmssql.Schema{{Name: "id"}, {Name: "val"}}
-	_, err := p.FetchRows(ctx, "orders", rows, schema)
+	_, err := p.FetchRows(ctx, "orders", rawRows, schema)
 	if err != nil {
 		t.Fatalf("FetchRows error: %v", err)
 	}
@@ -129,13 +130,13 @@ func TestFetchRows_InvokesRowsFetchedCallback(t *testing.T) {
 }
 
 func TestFetchRows_NilCallback_ReturnsUnmodified(t *testing.T) {
-	cbs := fullCallbacks()
-	cbs.rowsFetched = nil
-	p := newGMSRowProvider(&stubSchemaProvider{cols: []string{"id", "val"}, pkCol: "id"}, cbs)
+	// rowsFetched is nil — stub returns records unchanged.
+	b := &stubEventBridge{}
+	p := rows.NewGMSProvider(b)
 	ctx := makeTestContext(t)
-	rows := []gmssql.Row{{1, "a"}}
+	rawRows := []gmssql.Row{{1, "a"}}
 	schema := gmssql.Schema{{Name: "id"}, {Name: "v"}}
-	got, err := p.FetchRows(ctx, "t", rows, schema)
+	got, err := p.FetchRows(ctx, "t", rawRows, schema)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -146,11 +147,12 @@ func TestFetchRows_NilCallback_ReturnsUnmodified(t *testing.T) {
 
 func TestFetchRows_CallbackError_IsReturned(t *testing.T) {
 	want := errors.New("fetch failed")
-	cbs := fullCallbacks()
-	cbs.rowsFetched = func(_ uint32, _ string, r []map[string]any) ([]map[string]any, error) {
-		return nil, want
+	b := &stubEventBridge{
+		rowsFetched: func(_ uint32, _ string, r []map[string]any) ([]map[string]any, error) {
+			return nil, want
+		},
 	}
-	p := newGMSRowProvider(&stubSchemaProvider{cols: []string{"id"}, pkCol: "id"}, cbs)
+	p := rows.NewGMSProvider(b)
 	ctx := makeTestContext(t)
 	schema := gmssql.Schema{{Name: "id"}}
 	_, err := p.FetchRows(ctx, "t", []gmssql.Row{{1}}, schema)
@@ -165,22 +167,22 @@ func TestFetchRows_CallbackError_IsReturned(t *testing.T) {
 
 func TestCommitRows_InvokesRowsReadyCallback(t *testing.T) {
 	var order []string
-	cbs := fullCallbacks()
-	cbs.rowsFetched = func(_ uint32, _ string, r []map[string]any) ([]map[string]any, error) {
+	b := fullBridge()
+	b.rowsFetched = func(_ uint32, _ string, r []map[string]any) ([]map[string]any, error) {
 		order = append(order, "fetched")
 		return r, nil
 	}
-	cbs.rowsReady = func(_ uint32, _ string, r []map[string]any) ([]map[string]any, error) {
+	b.rowsReady = func(_ uint32, _ string, r []map[string]any) ([]map[string]any, error) {
 		order = append(order, "ready")
 		return r, nil
 	}
 
-	p := newGMSRowProvider(&stubSchemaProvider{cols: []string{"id", "val"}, pkCol: "id"}, cbs)
+	p := rows.NewGMSProvider(b)
 	ctx := makeTestContext(t)
-	rows := []gmssql.Row{{1, "x"}}
+	rawRows := []gmssql.Row{{1, "x"}}
 	schema := gmssql.Schema{{Name: "id"}, {Name: "val"}}
 
-	recs, err := p.FetchRows(ctx, "t", rows, schema)
+	recs, err := p.FetchRows(ctx, "t", rawRows, schema)
 	if err != nil {
 		t.Fatalf("FetchRows error: %v", err)
 	}
@@ -195,9 +197,9 @@ func TestCommitRows_InvokesRowsReadyCallback(t *testing.T) {
 }
 
 func TestCommitRows_NilCallback_ReturnsUnmodified(t *testing.T) {
-	cbs := fullCallbacks()
-	cbs.rowsReady = nil
-	p := newGMSRowProvider(&stubSchemaProvider{cols: []string{"id"}, pkCol: "id"}, cbs)
+	// rowsReady is nil — stub returns records unchanged.
+	b := &stubEventBridge{}
+	p := rows.NewGMSProvider(b)
 	ctx := makeTestContext(t)
 	records := []map[string]any{{"id": 1}}
 	got, err := p.CommitRows(ctx, "t", records)
@@ -214,9 +216,9 @@ func TestCommitRows_NilCallback_ReturnsUnmodified(t *testing.T) {
 // ---------------------------------------------------------------------------
 
 func TestInsertRow_NilCallback_ReturnsNilNoError(t *testing.T) {
-	cbs := fullCallbacks()
-	cbs.rowInserted = nil
-	p := newGMSRowProvider(&stubSchemaProvider{cols: []string{"id", "val"}, pkCol: "id"}, cbs)
+	// rowInserted is nil — stub returns (nil, nil).
+	b := &stubEventBridge{}
+	p := rows.NewGMSProvider(b)
 	ctx := makeTestContext(t)
 	schema := gmssql.Schema{{Name: "id"}, {Name: "val"}}
 	rec, err := p.InsertRow(ctx, "t", gmssql.Row{1, "x"}, schema)
@@ -229,9 +231,9 @@ func TestInsertRow_NilCallback_ReturnsNilNoError(t *testing.T) {
 }
 
 func TestUpdateRow_NilCallback_ReturnsNilNoError(t *testing.T) {
-	cbs := fullCallbacks()
-	cbs.rowUpdated = nil
-	p := newGMSRowProvider(&stubSchemaProvider{cols: []string{"id", "val"}, pkCol: "id"}, cbs)
+	// rowUpdated is nil — stub returns (nil, nil).
+	b := &stubEventBridge{}
+	p := rows.NewGMSProvider(b)
 	ctx := makeTestContext(t)
 	schema := gmssql.Schema{{Name: "id"}, {Name: "val"}}
 	rec, err := p.UpdateRow(ctx, "t", gmssql.Row{1, "old"}, gmssql.Row{1, "new"}, schema)
@@ -244,9 +246,9 @@ func TestUpdateRow_NilCallback_ReturnsNilNoError(t *testing.T) {
 }
 
 func TestDeleteRow_NilCallback_ReturnsNil(t *testing.T) {
-	cbs := fullCallbacks()
-	cbs.rowDeleted = nil
-	p := newGMSRowProvider(&stubSchemaProvider{cols: []string{"id", "val"}, pkCol: "id"}, cbs)
+	// rowDeleted is nil — stub returns nil.
+	b := &stubEventBridge{}
+	p := rows.NewGMSProvider(b)
 	ctx := makeTestContext(t)
 	schema := gmssql.Schema{{Name: "id"}, {Name: "val"}}
 	if err := p.DeleteRow(ctx, "t", gmssql.Row{1, "x"}, schema); err != nil {
@@ -256,8 +258,8 @@ func TestDeleteRow_NilCallback_ReturnsNil(t *testing.T) {
 
 func TestInsertRow_InvokesCallback(t *testing.T) {
 	var called bool
-	cbs := fullCallbacks()
-	cbs.rowInserted = func(_ uint32, table string, r map[string]any) (map[string]any, error) {
+	b := fullBridge()
+	b.rowInserted = func(_ uint32, table string, r map[string]any) (map[string]any, error) {
 		called = true
 		if table != "items" {
 			t.Errorf("table: got %q, want items", table)
@@ -267,7 +269,7 @@ func TestInsertRow_InvokesCallback(t *testing.T) {
 		}
 		return r, nil
 	}
-	p := newGMSRowProvider(&stubSchemaProvider{cols: []string{"id", "val"}, pkCol: "id"}, cbs)
+	p := rows.NewGMSProvider(b)
 	ctx := makeTestContext(t)
 	schema := gmssql.Schema{{Name: "id"}, {Name: "val"}}
 	_, err := p.InsertRow(ctx, "items", gmssql.Row{99, "thing"}, schema)

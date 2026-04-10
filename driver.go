@@ -4,12 +4,11 @@
 // Consuming modules must not import any internal sub-package or any package
 // from github.com/dolthub/go-mysql-server directly.
 //
-// The Driver type satisfies:
-//   - core.DriverReceiver (via SetDriverAPI)
-//   - core.Server         (via Run, Stop)
+// The Driver type satisfies core.Server (via Run and Stop).
 //
-// Construction via New performs no I/O and starts no goroutines. All lifecycle
-// management occurs inside Run, which the framework invokes via app.Run().
+// Construction via NewDriver performs no network I/O and starts no goroutines.
+// All lifecycle management occurs inside Run, which the framework invokes via
+// app.Run().
 package driver
 
 import (
@@ -24,10 +23,17 @@ import (
 	sqle "github.com/dolthub/go-mysql-server"
 	"github.com/dolthub/go-mysql-server/server"
 	gmssql "github.com/dolthub/go-mysql-server/sql"
+
+	"github.com/AnqorDX/vdb-mysql-driver/internal/bridge"
+	"github.com/AnqorDX/vdb-mysql-driver/internal/gms/engine"
+	"github.com/AnqorDX/vdb-mysql-driver/internal/gms/query"
+	"github.com/AnqorDX/vdb-mysql-driver/internal/gms/rows"
+	"github.com/AnqorDX/vdb-mysql-driver/internal/gms/session"
+	"github.com/AnqorDX/vdb-mysql-driver/internal/schema"
 )
 
 // Config holds the configuration for the MySQL driver.
-// All fields are read during New and SetDriverAPI; none are read after Run starts.
+// All fields are read during NewDriver; none are read after Run starts.
 type Config struct {
 	// Addr is the TCP address on which the MySQL wire-protocol server will listen.
 	// Typical value: ":3306".
@@ -51,139 +57,76 @@ type Config struct {
 }
 
 // Driver is the MySQL wire-protocol driver for VirtualDB.
-// Satisfies core.DriverReceiver via SetDriverAPI and core.Server via Run and Stop.
+// Satisfies core.Server via Run and Stop.
 //
-// Construct with New. Pass to app.UseDriver. Do not call Run directly;
+// Construct with NewDriver. Pass to app.UseDriver. Do not call Run directly;
 // the framework calls it via app.Run.
 type Driver struct {
 	cfg    Config
-	api    core.DriverAPI // set by SetDriverAPI; nil until then
-	cbs    callbacks      // wired in SetDriverAPI
-	rows   rowProvider    // wired in SetDriverAPI
-	schema schemaProvider // wired in SetDriverAPI
-	db     *sql.DB        // opened in SetDriverAPI; closed in Stop
-	gms    *sqle.Engine   // nil until SetDriverAPI
+	bridge *apiAdapter // adapts core.DriverAPI to bridge.EventBridge
+	schema schema.Provider
+	rows   rows.Provider
+	db     *sql.DB        // opened in NewDriver; closed in Stop
+	gms    *sqle.Engine   // non-nil after NewDriver
 	srv    *server.Server // nil until Run
 	mu     sync.Mutex     // guards srv
 }
 
 // Compile-time interface assertions.
-var _ core.DriverReceiver = (*Driver)(nil)
 var _ core.Server = (*Driver)(nil)
 
-// New constructs a Driver from cfg, defaulting zero-value timeouts to one minute.
-// No I/O occurs and no goroutines are started.
-func New(cfg Config) *Driver {
+// NewDriver constructs a fully-wired Driver from cfg and api. It applies
+// default timeouts, opens the source DB connection, builds all internal
+// providers, and wires the GMS engine. No goroutines are started and no
+// network connections are established — those happen inside Run.
+//
+// Panics if the source DSN is malformed — a misconfigured DSN means the
+// process cannot function at all, and failing at construction time is the
+// correct behaviour.
+func NewDriver(cfg Config, api core.DriverAPI) *Driver {
 	if cfg.ConnReadTimeout == 0 {
 		cfg.ConnReadTimeout = time.Minute
 	}
 	if cfg.ConnWriteTimeout == 0 {
 		cfg.ConnWriteTimeout = time.Minute
 	}
-	return &Driver{cfg: cfg}
-}
 
-// SetDriverAPI satisfies core.DriverReceiver. It opens the source database
-// connection, builds the internal GMS engine, and wires all twelve callbacks
-// to the corresponding core.DriverAPI methods.
-//
-// After SetDriverAPI returns, d.gms is non-nil and ready to serve queries.
-// Run must still be called to bind the network port.
-//
-// Panics if the source DSN is malformed — a misconfigured DSN means the process
-// cannot function at all, and failing at wiring time is the correct behaviour.
-func (d *Driver) SetDriverAPI(api core.DriverAPI) {
-	d.api = api
+	db := mustOpenDB(cfg.SourceDSN)
 
-	// sql.Open validates DSN format but does not open a TCP connection.
-	sourceDB, err := sql.Open("mysql", d.cfg.SourceDSN)
-	if err != nil {
-		panic(fmt.Sprintf("driver: failed to open source DB: %v", err))
+	adapt := &apiAdapter{api: api}
+
+	// Wrap the raw schema provider so each successful GetSchema also notifies
+	// the event bridge (which forwards to api.SchemaLoaded). The internal GMS
+	// layer has no knowledge of core.DriverAPI.
+	rawSchema := schema.NewSQLProvider(db, cfg.DBName)
+	wrappedSchema := schema.NewNotifyingProvider(rawSchema, adapt)
+
+	rowProv := rows.NewGMSProvider(adapt)
+
+	gmsEngine := sqle.NewDefault(engine.NewDatabaseProvider(
+		cfg.DBName,
+		rowProv,
+		wrappedSchema,
+		db,
+	))
+
+	return &Driver{
+		cfg:    cfg,
+		bridge: adapt,
+		schema: wrappedSchema,
+		rows:   rowProv,
+		db:     db,
+		gms:    gmsEngine,
 	}
-	d.db = sourceDB
-
-	// Wrap the raw schema provider so each successful GetSchema also calls
-	// api.SchemaLoaded. The internal GMS layer has no knowledge of core.DriverAPI.
-	rawSchema := newSQLSchemaProvider(sourceDB, d.cfg.DBName)
-	wrapped := &wrappedSchemaProvider{
-		inner: rawSchema,
-		onLoad: func(table string, cols []string, pkCol string) {
-			api.SchemaLoaded(table, cols, pkCol)
-		},
-	}
-	d.schema = wrapped
-
-	// Wire the twelve callbacks to core.DriverAPI methods.
-	//
-	// Vocabulary (internal field → DriverAPI method):
-	//   rowsFetched → RecordsSource   (rows just read from source DB)
-	//   rowsReady   → RecordsMerged   (rows after delta overlay, ready for client)
-	//   rowInserted → RecordInserted
-	//   rowUpdated  → RecordUpdated
-	//   rowDeleted  → RecordDeleted
-	cbs := callbacks{
-		connectionOpened: func(id uint32, user, addr string) error {
-			return api.ConnectionOpened(id, user, addr)
-		},
-		connectionClosed: func(id uint32, user, addr string) {
-			api.ConnectionClosed(id, user, addr)
-		},
-		transactionBegun: func(connID uint32, readOnly bool) error {
-			return api.TransactionBegun(connID, readOnly)
-		},
-		transactionCommitted: func(connID uint32) error {
-			return api.TransactionCommitted(connID)
-		},
-		transactionRolledBack: func(connID uint32, savepoint string) {
-			api.TransactionRolledBack(connID, savepoint)
-		},
-		queryReceived: func(connID uint32, query, database string) (string, error) {
-			return api.QueryReceived(connID, query, database)
-		},
-		queryCompleted: func(connID uint32, query string, rowsAffected int64, err error) {
-			api.QueryCompleted(connID, query, rowsAffected, err)
-		},
-		rowsFetched: func(connID uint32, table string, records []map[string]any) ([]map[string]any, error) {
-			return api.RecordsSource(connID, table, records)
-		},
-		rowsReady: func(connID uint32, table string, records []map[string]any) ([]map[string]any, error) {
-			return api.RecordsMerged(connID, table, records)
-		},
-		rowInserted: func(connID uint32, table string, record map[string]any) (map[string]any, error) {
-			return api.RecordInserted(connID, table, record)
-		},
-		rowUpdated: func(connID uint32, table string, old, new map[string]any) (map[string]any, error) {
-			return api.RecordUpdated(connID, table, old, new)
-		},
-		rowDeleted: func(connID uint32, table string, record map[string]any) error {
-			return api.RecordDeleted(connID, table, record)
-		},
-	}
-	validateCallbacks(cbs)
-	d.cbs = cbs
-	d.rows = newGMSRowProvider(wrapped, cbs)
-
-	d.gms = sqle.NewDefault(&vdbDatabaseProvider{
-		dbName: d.cfg.DBName,
-		rows:   d.rows,
-		schema: d.schema,
-		db:     d.db,
-	})
 }
 
 // Run satisfies core.Server. It binds the MySQL wire-protocol listener and
 // blocks until Stop is called or a fatal error occurs.
 //
-// Run must not be called before SetDriverAPI. The framework guarantees this
-// ordering by calling SetDriverAPI synchronously inside UseDriver before
-// app.Run() fires the server start handler.
+// The framework guarantees that NewDriver is called before Run.
 func (d *Driver) Run() error {
-	if d.gms == nil {
-		return fmt.Errorf("driver: SetDriverAPI must be called before Run")
-	}
-
 	chain := &server.InterceptorChain{}
-	chain.WithInterceptor(&queryInterceptor{cbs: &d.cbs})
+	chain.WithInterceptor(query.NewInterceptor(d.bridge))
 
 	srv, err := server.NewServer(
 		server.Config{
@@ -195,7 +138,7 @@ func (d *Driver) Run() error {
 		},
 		d.gms,
 		gmssql.NewContext,
-		buildSessionBuilder(d.cfg.DBName, &d.cbs),
+		session.Builder(d.cfg.DBName, d.bridge),
 		noopServerEventListener{},
 	)
 	if err != nil {
@@ -225,6 +168,97 @@ func (d *Driver) Stop() error {
 		d.db.Close()
 	}
 	return err
+}
+
+// ---------------------------------------------------------------------------
+// mustOpenDB
+// ---------------------------------------------------------------------------
+
+// mustOpenDB opens the source database connection. sql.Open validates the DSN
+// format but does not establish a TCP connection. Panics if the DSN is
+// malformed, since a misconfigured DSN means the process cannot function.
+func mustOpenDB(dsn string) *sql.DB {
+	db, err := sql.Open("mysql", dsn)
+	if err != nil {
+		panic(fmt.Sprintf("driver: failed to open source DB: %v", err))
+	}
+	return db
+}
+
+// ---------------------------------------------------------------------------
+// apiAdapter — adapts core.DriverAPI to bridge.EventBridge
+// ---------------------------------------------------------------------------
+
+// apiAdapter translates every bridge.EventBridge call to the corresponding
+// core.DriverAPI call. It is the single boundary between the driver's internal
+// packages and the vdb-core framework.
+type apiAdapter struct {
+	api core.DriverAPI
+}
+
+// Compile-time assertion: apiAdapter satisfies bridge.EventBridge.
+var _ bridge.EventBridge = (*apiAdapter)(nil)
+
+func (a *apiAdapter) ConnectionOpened(id uint32, user, addr string) error {
+	return a.api.ConnectionOpened(id, user, addr)
+}
+
+func (a *apiAdapter) ConnectionClosed(id uint32, user, addr string) {
+	a.api.ConnectionClosed(id, user, addr)
+}
+
+func (a *apiAdapter) TransactionBegun(connID uint32, readOnly bool) error {
+	return a.api.TransactionBegun(connID, readOnly)
+}
+
+func (a *apiAdapter) TransactionCommitted(connID uint32) error {
+	return a.api.TransactionCommitted(connID)
+}
+
+func (a *apiAdapter) TransactionRolledBack(connID uint32, savepoint string) {
+	a.api.TransactionRolledBack(connID, savepoint)
+}
+
+func (a *apiAdapter) QueryReceived(connID uint32, query, database string) (string, error) {
+	return a.api.QueryReceived(connID, query, database)
+}
+
+func (a *apiAdapter) QueryCompleted(connID uint32, query string, rowsAffected int64, err error) {
+	a.api.QueryCompleted(connID, query, rowsAffected, err)
+}
+
+// RowsFetched maps to core.DriverAPI.RecordsSource (rows just read from the
+// source DB before the delta overlay is applied).
+func (a *apiAdapter) RowsFetched(connID uint32, table string, records []map[string]any) ([]map[string]any, error) {
+	return a.api.RecordsSource(connID, table, records)
+}
+
+// RowsReady maps to core.DriverAPI.RecordsMerged (final rows after the delta
+// overlay has been applied, ready to return to the client).
+func (a *apiAdapter) RowsReady(connID uint32, table string, records []map[string]any) ([]map[string]any, error) {
+	return a.api.RecordsMerged(connID, table, records)
+}
+
+func (a *apiAdapter) RowInserted(connID uint32, table string, record map[string]any) (map[string]any, error) {
+	return a.api.RecordInserted(connID, table, record)
+}
+
+func (a *apiAdapter) RowUpdated(connID uint32, table string, old, new map[string]any) (map[string]any, error) {
+	return a.api.RecordUpdated(connID, table, old, new)
+}
+
+func (a *apiAdapter) RowDeleted(connID uint32, table string, record map[string]any) error {
+	return a.api.RecordDeleted(connID, table, record)
+}
+
+// SchemaLoaded satisfies both bridge.EventBridge and schema.LoadListener.
+// The apiAdapter is passed directly as the NotifyingProvider's listener.
+func (a *apiAdapter) SchemaLoaded(table string, cols []string, pkCol string) {
+	a.api.SchemaLoaded(table, cols, pkCol)
+}
+
+func (a *apiAdapter) SchemaInvalidated(table string) {
+	a.api.SchemaInvalidated(table)
 }
 
 // ---------------------------------------------------------------------------
