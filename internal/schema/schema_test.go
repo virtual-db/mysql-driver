@@ -1,4 +1,4 @@
-package driver
+package schema_test
 
 import (
 	"database/sql"
@@ -11,6 +11,42 @@ import (
 
 	"github.com/AnqorDX/vdb-mysql-driver/internal/schema"
 )
+
+// ---------------------------------------------------------------------------
+// Local stubs
+// ---------------------------------------------------------------------------
+
+// stubSchemaProvider satisfies schema.Provider for tests with configurable
+// return values.
+type stubSchemaProvider struct {
+	cols  []string
+	pkCol string
+	err   error
+}
+
+func (s *stubSchemaProvider) GetSchema(_ string) ([]string, string, error) {
+	return s.cols, s.pkCol, s.err
+}
+
+var _ schema.Provider = (*stubSchemaProvider)(nil)
+
+// stubLoadListener satisfies schema.LoadListener for tests. It exposes a
+// function field for SchemaLoaded; when nil, SchemaLoaded is a no-op.
+type stubLoadListener struct {
+	schemaLoaded func(table string, cols []string, pkCol string)
+}
+
+func (s *stubLoadListener) SchemaLoaded(table string, cols []string, pkCol string) {
+	if s.schemaLoaded != nil {
+		s.schemaLoaded(table, cols, pkCol)
+	}
+}
+
+var _ schema.LoadListener = (*stubLoadListener)(nil)
+
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
 
 // newMockDB is a helper that returns a *sql.DB backed by sqlmock and the
 // associated mock controller. The test fails immediately if setup fails.
@@ -285,7 +321,7 @@ func TestToGMSSchema_TypeIsNonNil(t *testing.T) {
 }
 
 // ---------------------------------------------------------------------------
-// schema.NotifyingProvider (moved from driver_test.go)
+// schema.NotifyingProvider
 // ---------------------------------------------------------------------------
 
 func TestWrappedSchemaProvider_OnSuccess_CallsOnLoad(t *testing.T) {
@@ -299,7 +335,7 @@ func TestWrappedSchemaProvider_OnSuccess_CallsOnLoad(t *testing.T) {
 		pkCol: "id",
 	}
 
-	listener := &stubEventBridge{
+	listener := &stubLoadListener{
 		schemaLoaded: func(table string, cols []string, pkCol string) {
 			called = true
 			gotTable = table
@@ -345,7 +381,7 @@ func TestWrappedSchemaProvider_OnError_SuppressesOnLoad(t *testing.T) {
 	inner := &stubSchemaProvider{err: innerErr}
 
 	var called bool
-	listener := &stubEventBridge{
+	listener := &stubLoadListener{
 		schemaLoaded: func(_ string, _ []string, _ string) { called = true },
 	}
 
@@ -390,7 +426,7 @@ func TestWrappedSchemaProvider_ReturnValuesMatchInner(t *testing.T) {
 		cols:  []string{"sku", "price", "stock"},
 		pkCol: "sku",
 	}
-	listener := &stubEventBridge{}
+	listener := &stubLoadListener{}
 
 	w := schema.NewNotifyingProvider(inner, listener)
 
@@ -418,7 +454,7 @@ func TestWrappedSchemaProvider_NoPrimaryKey_PassedThrough(t *testing.T) {
 		pkCol: "",
 	}
 	var gotPK = "SENTINEL"
-	listener := &stubEventBridge{
+	listener := &stubLoadListener{
 		schemaLoaded: func(_ string, _ []string, pkCol string) {
 			gotPK = pkCol
 		},

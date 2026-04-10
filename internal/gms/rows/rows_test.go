@@ -1,12 +1,107 @@
-package driver
+package rows_test
 
 import (
 	"errors"
 	"testing"
 
+	"github.com/AnqorDX/vdb-mysql-driver/internal/bridge"
 	"github.com/AnqorDX/vdb-mysql-driver/internal/gms/rows"
 	gmssql "github.com/dolthub/go-mysql-server/sql"
 )
+
+// ---------------------------------------------------------------------------
+// Local stubs
+// ---------------------------------------------------------------------------
+
+// stubEventBridge is a local stub for bridge.EventBridge used only by
+// gms/rows tests. It exposes function fields for the five methods that
+// GMSProvider calls; all others are no-ops.
+type stubEventBridge struct {
+	rowsFetched func(uint32, string, []map[string]any) ([]map[string]any, error)
+	rowsReady   func(uint32, string, []map[string]any) ([]map[string]any, error)
+	rowInserted func(uint32, string, map[string]any) (map[string]any, error)
+	rowUpdated  func(uint32, string, map[string]any, map[string]any) (map[string]any, error)
+	rowDeleted  func(uint32, string, map[string]any) error
+}
+
+var _ bridge.EventBridge = (*stubEventBridge)(nil)
+
+func (s *stubEventBridge) ConnectionOpened(_ uint32, _, _ string) error { return nil }
+func (s *stubEventBridge) ConnectionClosed(_ uint32, _, _ string)       {}
+func (s *stubEventBridge) TransactionBegun(_ uint32, _ bool) error      { return nil }
+func (s *stubEventBridge) TransactionCommitted(_ uint32) error          { return nil }
+func (s *stubEventBridge) TransactionRolledBack(_ uint32, _ string)     {}
+func (s *stubEventBridge) QueryReceived(_ uint32, q, _ string) (string, error) {
+	return q, nil
+}
+func (s *stubEventBridge) QueryCompleted(_ uint32, _ string, _ int64, _ error) {}
+func (s *stubEventBridge) SchemaLoaded(_ string, _ []string, _ string)         {}
+func (s *stubEventBridge) SchemaInvalidated(_ string)                          {}
+
+// RowsFetched returns the records unchanged when the field is nil.
+func (s *stubEventBridge) RowsFetched(connID uint32, table string, records []map[string]any) ([]map[string]any, error) {
+	if s.rowsFetched != nil {
+		return s.rowsFetched(connID, table, records)
+	}
+	return records, nil
+}
+
+// RowsReady returns the records unchanged when the field is nil.
+func (s *stubEventBridge) RowsReady(connID uint32, table string, records []map[string]any) ([]map[string]any, error) {
+	if s.rowsReady != nil {
+		return s.rowsReady(connID, table, records)
+	}
+	return records, nil
+}
+
+// RowInserted returns (nil, nil) when the field is nil.
+func (s *stubEventBridge) RowInserted(connID uint32, table string, record map[string]any) (map[string]any, error) {
+	if s.rowInserted != nil {
+		return s.rowInserted(connID, table, record)
+	}
+	return nil, nil
+}
+
+// RowUpdated returns (nil, nil) when the field is nil.
+func (s *stubEventBridge) RowUpdated(connID uint32, table string, old, new map[string]any) (map[string]any, error) {
+	if s.rowUpdated != nil {
+		return s.rowUpdated(connID, table, old, new)
+	}
+	return nil, nil
+}
+
+// RowDeleted returns nil when the field is nil.
+func (s *stubEventBridge) RowDeleted(connID uint32, table string, record map[string]any) error {
+	if s.rowDeleted != nil {
+		return s.rowDeleted(connID, table, record)
+	}
+	return nil
+}
+
+// fullBridge returns a *stubEventBridge with all five relevant fields populated
+// with minimal pass-through functions. Used by tests that replace a single
+// field to verify it is called.
+func fullBridge() *stubEventBridge {
+	return &stubEventBridge{
+		rowsFetched: func(_ uint32, _ string, r []map[string]any) ([]map[string]any, error) {
+			return r, nil
+		},
+		rowsReady: func(_ uint32, _ string, r []map[string]any) ([]map[string]any, error) {
+			return r, nil
+		},
+		rowInserted: func(_ uint32, _ string, r map[string]any) (map[string]any, error) {
+			return r, nil
+		},
+		rowUpdated: func(_ uint32, _ string, _, n map[string]any) (map[string]any, error) {
+			return n, nil
+		},
+		rowDeleted: func(_ uint32, _ string, _ map[string]any) error { return nil },
+	}
+}
+
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
 
 // makeTestContext creates a minimal *gmssql.Context for unit tests.
 func makeTestContext(t *testing.T) *gmssql.Context {
@@ -81,12 +176,12 @@ func TestMapToRow_PreservesColumnOrdering(t *testing.T) {
 // ---------------------------------------------------------------------------
 
 func TestSchemaColumns_ExtractsNames(t *testing.T) {
-	schema := gmssql.Schema{
+	s := gmssql.Schema{
 		{Name: "id"},
 		{Name: "title"},
 		{Name: "created_at"},
 	}
-	cols := rows.SchemaColumns(schema)
+	cols := rows.SchemaColumns(s)
 	want := []string{"id", "title", "created_at"}
 	if len(cols) != len(want) {
 		t.Fatalf("length: got %d, want %d", len(cols), len(want))
@@ -130,7 +225,6 @@ func TestFetchRows_InvokesRowsFetchedCallback(t *testing.T) {
 }
 
 func TestFetchRows_NilCallback_ReturnsUnmodified(t *testing.T) {
-	// rowsFetched is nil — stub returns records unchanged.
 	b := &stubEventBridge{}
 	p := rows.NewGMSProvider(b)
 	ctx := makeTestContext(t)
@@ -197,7 +291,6 @@ func TestCommitRows_InvokesRowsReadyCallback(t *testing.T) {
 }
 
 func TestCommitRows_NilCallback_ReturnsUnmodified(t *testing.T) {
-	// rowsReady is nil — stub returns records unchanged.
 	b := &stubEventBridge{}
 	p := rows.NewGMSProvider(b)
 	ctx := makeTestContext(t)
@@ -216,7 +309,6 @@ func TestCommitRows_NilCallback_ReturnsUnmodified(t *testing.T) {
 // ---------------------------------------------------------------------------
 
 func TestInsertRow_NilCallback_ReturnsNilNoError(t *testing.T) {
-	// rowInserted is nil — stub returns (nil, nil).
 	b := &stubEventBridge{}
 	p := rows.NewGMSProvider(b)
 	ctx := makeTestContext(t)
@@ -231,7 +323,6 @@ func TestInsertRow_NilCallback_ReturnsNilNoError(t *testing.T) {
 }
 
 func TestUpdateRow_NilCallback_ReturnsNilNoError(t *testing.T) {
-	// rowUpdated is nil — stub returns (nil, nil).
 	b := &stubEventBridge{}
 	p := rows.NewGMSProvider(b)
 	ctx := makeTestContext(t)
@@ -246,7 +337,6 @@ func TestUpdateRow_NilCallback_ReturnsNilNoError(t *testing.T) {
 }
 
 func TestDeleteRow_NilCallback_ReturnsNil(t *testing.T) {
-	// rowDeleted is nil — stub returns nil.
 	b := &stubEventBridge{}
 	p := rows.NewGMSProvider(b)
 	ctx := makeTestContext(t)
