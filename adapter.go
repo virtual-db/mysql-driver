@@ -14,10 +14,10 @@ package driver
 import (
 	"time"
 
-	core "github.com/AnqorDX/vdb-core"
+	core "github.com/virtual-db/vdb-core"
 	"github.com/dolthub/go-mysql-server/server"
 
-	"github.com/AnqorDX/vdb-mysql-driver/internal/bridge"
+	"github.com/virtual-db/vdb-mysql-driver/internal/bridge"
 )
 
 // ---------------------------------------------------------------------------

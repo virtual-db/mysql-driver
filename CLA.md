@@ -1,6 +1,6 @@
 # Contributor License Agreement
 
-This Contributor License Agreement ("Agreement") applies to any contribution you make to any repository owned or managed by Anqor DX, Inc. ("Anqor"), including vdb-mysql-driver.
+This Contributor License Agreement ("Agreement") applies to any contribution you make to any repository owned or managed by Anqor LLC ("Anqor"), including vdb-mysql-driver.
 
 By submitting a pull request, patch, or any other contribution to this repository, you agree to the terms of this Agreement.
 

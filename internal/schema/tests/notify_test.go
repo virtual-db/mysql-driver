@@ -4,7 +4,7 @@ import (
 	"errors"
 	"testing"
 
-	. "github.com/AnqorDX/vdb-mysql-driver/internal/schema"
+	. "github.com/virtual-db/vdb-mysql-driver/internal/schema"
 )
 
 // ---------------------------------------------------------------------------

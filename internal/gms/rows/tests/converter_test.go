@@ -3,7 +3,7 @@ package rows_test
 import (
 	"testing"
 
-	. "github.com/AnqorDX/vdb-mysql-driver/internal/gms/rows"
+	. "github.com/virtual-db/vdb-mysql-driver/internal/gms/rows"
 	gmssql "github.com/dolthub/go-mysql-server/sql"
 )
 

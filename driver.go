@@ -9,19 +9,19 @@ import (
 
 	_ "github.com/go-sql-driver/mysql"
 
-	core "github.com/AnqorDX/vdb-core"
+	core "github.com/virtual-db/vdb-core"
 	sqle "github.com/dolthub/go-mysql-server"
 	"github.com/dolthub/go-mysql-server/server"
 	gmssql "github.com/dolthub/go-mysql-server/sql"
 	vitessmysql "github.com/dolthub/vitess/go/mysql"
 
-	"github.com/AnqorDX/vdb-mysql-driver/internal/gms/engine"
-	"github.com/AnqorDX/vdb-mysql-driver/internal/gms/query"
-	"github.com/AnqorDX/vdb-mysql-driver/internal/gms/rows"
-	"github.com/AnqorDX/vdb-mysql-driver/internal/gms/session"
-	"github.com/AnqorDX/vdb-mysql-driver/internal/listener"
-	"github.com/AnqorDX/vdb-mysql-driver/internal/probe"
-	"github.com/AnqorDX/vdb-mysql-driver/internal/schema"
+	"github.com/virtual-db/vdb-mysql-driver/internal/gms/engine"
+	"github.com/virtual-db/vdb-mysql-driver/internal/gms/query"
+	"github.com/virtual-db/vdb-mysql-driver/internal/gms/rows"
+	"github.com/virtual-db/vdb-mysql-driver/internal/gms/session"
+	"github.com/virtual-db/vdb-mysql-driver/internal/listener"
+	"github.com/virtual-db/vdb-mysql-driver/internal/probe"
+	"github.com/virtual-db/vdb-mysql-driver/internal/schema"
 )
 
 type Config struct {

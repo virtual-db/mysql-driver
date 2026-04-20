@@ -3,8 +3,8 @@ package driver_test
 import (
 	"testing"
 
-	core "github.com/AnqorDX/vdb-core"
-	driver "github.com/AnqorDX/vdb-mysql-driver"
+	core "github.com/virtual-db/vdb-core"
+	driver "github.com/virtual-db/vdb-mysql-driver"
 )
 
 // TestDriver_SatisfiesCoreServer is the compile-time contract test.

@@ -6,7 +6,7 @@ import (
 
 	vitessmysql "github.com/dolthub/vitess/go/mysql"
 
-	"github.com/AnqorDX/vdb-mysql-driver/internal/bridge"
+	"github.com/virtual-db/vdb-mysql-driver/internal/bridge"
 	"github.com/dolthub/go-mysql-server/server"
 	gmssql "github.com/dolthub/go-mysql-server/sql"
 )

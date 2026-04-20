@@ -8,7 +8,7 @@ import (
 
 	sqlmock "github.com/DATA-DOG/go-sqlmock"
 
-	. "github.com/AnqorDX/vdb-mysql-driver/internal/schema"
+	. "github.com/virtual-db/vdb-mysql-driver/internal/schema"
 )
 
 func newMockDB(t *testing.T) (*sql.DB, sqlmock.Sqlmock) {
