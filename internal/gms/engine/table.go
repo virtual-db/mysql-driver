@@ -10,7 +10,7 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/AnqorDX/vdb-mysql-driver/internal/gms/rows"
+	"github.com/virtual-db/mysql-driver/internal/gms/rows"
 	gmssql "github.com/dolthub/go-mysql-server/sql"
 )
 

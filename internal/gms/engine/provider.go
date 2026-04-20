@@ -6,8 +6,8 @@ import (
 	"strings"
 	"sync"
 
-	rowspkg "github.com/AnqorDX/vdb-mysql-driver/internal/gms/rows"
-	schemapkg "github.com/AnqorDX/vdb-mysql-driver/internal/schema"
+	rowspkg "github.com/virtual-db/mysql-driver/internal/gms/rows"
+	schemapkg "github.com/virtual-db/mysql-driver/internal/schema"
 	gmssql "github.com/dolthub/go-mysql-server/sql"
 )
 

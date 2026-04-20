@@ -5,7 +5,7 @@ package query
 import (
 	"context"
 
-	"github.com/AnqorDX/vdb-mysql-driver/internal/bridge"
+	"github.com/virtual-db/mysql-driver/internal/bridge"
 	vitessmysql "github.com/dolthub/vitess/go/mysql"
 	sqltypes "github.com/dolthub/vitess/go/sqltypes"
 	querypb "github.com/dolthub/vitess/go/vt/proto/query"
