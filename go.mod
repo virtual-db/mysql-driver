@@ -3,7 +3,6 @@ module github.com/virtual-db/mysql-driver
 go 1.23.3
 
 require (
-	github.com/virtual-db/core v0.0.1-alpha.1
 
 	// go-sqlmock provides a database/sql mock used in mysqlengine/schema_test.go
 	// to unit-test the SchemaProvider without a real MySQL instance. DRV-001
@@ -23,12 +22,13 @@ require (
 	// it is an unavoidable part of the GMS v0.20.x public API surface.
 	github.com/dolthub/vitess v0.0.0-20250512224608-8fb9c6ea092c
 	github.com/go-sql-driver/mysql v1.9.3
+	github.com/virtual-db/core v0.0.1-alpha.2
 )
 
 require (
 	filippo.io/edwards25519 v1.1.0 // indirect
-	github.com/virtual-db/dispatch v0.0.1-alpha-1 // indirect
-	github.com/virtual-db/pipeline v0.0.1-alpha-1 // indirect
+	github.com/AnqorDX/dispatch v0.0.1-alpha-1 // indirect
+	github.com/AnqorDX/pipeline v0.0.1-alpha-1 // indirect
 	github.com/cespare/xxhash/v2 v2.2.0 // indirect
 	github.com/dolthub/flatbuffers/v23 v23.3.3-dh.2 // indirect
 	github.com/dolthub/go-icu-regex v0.0.0-20250327004329-6799764f2dad // indirect
