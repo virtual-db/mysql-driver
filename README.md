@@ -1,12 +1,12 @@
-# vdb-mysql-driver
+# mysql-driver
 
-A MySQL protocol driver for the [VirtualDB](https://github.com/AnqorDX/vdb-core) framework. It exposes a standard MySQL TCP endpoint that any MySQL-compatible client can connect to, intercepts the full query and row lifecycle, and delegates every event to a `core.DriverAPI` implementation provided by the caller.
+A MySQL protocol driver for the [VirtualDB](https://github.com/virtual-db/core) framework. It exposes a standard MySQL TCP endpoint that any MySQL-compatible client can connect to, intercepts the full query and row lifecycle, and delegates every event to a `core.DriverAPI` implementation provided by the caller.
 
 ---
 
 ## What It Does
 
-`vdb-mysql-driver` sits between a MySQL client and a real MySQL source database. It:
+`mysql-driver` sits between a MySQL client and a real MySQL source database. It:
 
 - Accepts MySQL protocol connections on a configurable TCP address.
 - Authenticates clients by proxying the MySQL handshake to the source database — no credential storage of its own.
@@ -70,7 +70,7 @@ Requires Go 1.23.3 or later.
 
 ```
 
-go get github.com/AnqorDX/vdb-mysql-driver
+go get github.com/virtual-db/mysql-driver
 
 ```
 
@@ -80,8 +80,8 @@ go get github.com/AnqorDX/vdb-mysql-driver
 
 ```go
 import (
-    driver "github.com/AnqorDX/vdb-mysql-driver"
-    core   "github.com/AnqorDX/vdb-core"
+    driver "github.com/virtual-db/mysql-driver"
+    core   "github.com/virtual-db/core"
 )
 
 // Implement core.DriverAPI with your business logic.
@@ -142,7 +142,7 @@ func main() {
 
 | Package | Purpose |
 |---|---|
-| `github.com/AnqorDX/vdb-core` | Framework interface (`core.DriverAPI`, `core.Server`). |
+| `github.com/virtual-db/core` | Framework interface (`core.DriverAPI`, `core.Server`). |
 | `github.com/dolthub/go-mysql-server` | SQL parsing, planning, and MySQL protocol server. |
 | `github.com/dolthub/vitess` | Vitess types exposed in the GMS v0.20.x public API. |
 | `github.com/go-sql-driver/mysql` | `database/sql` driver for the source MySQL connection. |
