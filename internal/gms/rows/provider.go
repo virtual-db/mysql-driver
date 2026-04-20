@@ -3,7 +3,7 @@
 package rows
 
 import (
-	"github.com/virtual-db/vdb-mysql-driver/internal/bridge"
+	"github.com/virtual-db/mysql-driver/internal/bridge"
 	gmssql "github.com/dolthub/go-mysql-server/sql"
 )
 

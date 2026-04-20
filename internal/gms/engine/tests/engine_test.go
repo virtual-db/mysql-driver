@@ -6,10 +6,10 @@ import (
 
 	gmssql "github.com/dolthub/go-mysql-server/sql"
 
-	"github.com/virtual-db/vdb-mysql-driver/internal/gms/rows"
-	"github.com/virtual-db/vdb-mysql-driver/internal/schema"
+	"github.com/virtual-db/mysql-driver/internal/gms/rows"
+	"github.com/virtual-db/mysql-driver/internal/schema"
 
-	. "github.com/virtual-db/vdb-mysql-driver/internal/gms/engine"
+	. "github.com/virtual-db/mysql-driver/internal/gms/engine"
 )
 
 // ---------------------------------------------------------------------------

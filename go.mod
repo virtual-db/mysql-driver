@@ -1,9 +1,9 @@
-module github.com/virtual-db/vdb-mysql-driver
+module github.com/virtual-db/mysql-driver
 
 go 1.23.3
 
 require (
-	github.com/virtual-db/vdb-core v0.0.1-alpha.1
+	github.com/virtual-db/core v0.0.1-alpha.1
 
 	// go-sqlmock provides a database/sql mock used in mysqlengine/schema_test.go
 	// to unit-test the SchemaProvider without a real MySQL instance. DRV-001

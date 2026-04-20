@@ -4,8 +4,8 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/virtual-db/vdb-mysql-driver/internal/bridge"
-	. "github.com/virtual-db/vdb-mysql-driver/internal/gms/rows"
+	"github.com/virtual-db/mysql-driver/internal/bridge"
+	. "github.com/virtual-db/mysql-driver/internal/gms/rows"
 	gmssql "github.com/dolthub/go-mysql-server/sql"
 )
 

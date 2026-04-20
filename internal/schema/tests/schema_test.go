@@ -7,7 +7,7 @@ import (
 	gmssql "github.com/dolthub/go-mysql-server/sql"
 	gmstypes "github.com/dolthub/go-mysql-server/sql/types"
 
-	. "github.com/virtual-db/vdb-mysql-driver/internal/schema"
+	. "github.com/virtual-db/mysql-driver/internal/schema"
 )
 
 // ---------------------------------------------------------------------------

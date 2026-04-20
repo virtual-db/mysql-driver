@@ -3,8 +3,8 @@ package engine
 import (
 	"database/sql"
 
-	"github.com/virtual-db/vdb-mysql-driver/internal/gms/rows"
-	intschema "github.com/virtual-db/vdb-mysql-driver/internal/schema"
+	"github.com/virtual-db/mysql-driver/internal/gms/rows"
+	intschema "github.com/virtual-db/mysql-driver/internal/schema"
 	gmssql "github.com/dolthub/go-mysql-server/sql"
 )
 

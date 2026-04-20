@@ -5,9 +5,9 @@ import (
 	"errors"
 	"testing"
 
-	. "github.com/virtual-db/vdb-mysql-driver/internal/gms/query"
+	. "github.com/virtual-db/mysql-driver/internal/gms/query"
 
-	"github.com/virtual-db/vdb-mysql-driver/internal/bridge"
+	"github.com/virtual-db/mysql-driver/internal/bridge"
 	"github.com/dolthub/go-mysql-server/server"
 	vitessmysql "github.com/dolthub/vitess/go/mysql"
 	sqltypes "github.com/dolthub/vitess/go/sqltypes"
