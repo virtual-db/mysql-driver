@@ -3,6 +3,7 @@ package session
 import (
 	gmssql "github.com/dolthub/go-mysql-server/sql"
 
+	"github.com/virtual-db/mysql-driver/internal/auth"
 	"github.com/virtual-db/mysql-driver/internal/bridge"
 )
 
@@ -11,10 +12,34 @@ import (
 //   - sql.LifecycleAwareSession  (CommandBegin, CommandEnd, SessionEnd)
 //   - sql.TransactionSession     (StartTransaction, CommitTransaction, Rollback,
 //     CreateSavepoint, RollbackToSavepoint, ReleaseSavepoint)
+//
+// It also carries the authorization grants derived from the probe connection
+// at NewConnection time. The Delta reads these via GetGrants() on every storage
+// backend call to enforce authorization scope. Grants are NOT used to acquire
+// a source DB connection — the read-only service-account pool is a
+// construction-time field on the Delta, completely independent of this session.
 type Session struct {
 	*gmssql.BaseSession
 	connID uint32
 	events bridge.EventBridge
+	grants *auth.Grants
+}
+
+// New constructs a Session. Called by internal/handler during NewConnection.
+func New(base *gmssql.BaseSession, connID uint32, events bridge.EventBridge, grants *auth.Grants) *Session {
+	return &Session{
+		BaseSession: base,
+		connID:      connID,
+		events:      events,
+		grants:      grants,
+	}
+}
+
+// GetGrants returns the authorization grants derived from the probe connection
+// at connection time. Returns nil if the session was constructed without grants
+// (e.g. in tests that bypass auth).
+func (s *Session) GetGrants() *auth.Grants {
+	return s.grants
 }
 
 // CommandBegin satisfies sql.LifecycleAwareSession. Called before every SQL command.

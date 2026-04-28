@@ -1,15 +1,14 @@
 package session_test
 
 import (
-	"context"
 	"errors"
 	"strings"
 	"testing"
 
-	"github.com/virtual-db/mysql-driver/internal/bridge"
-	. "github.com/virtual-db/mysql-driver/internal/gms/session"
 	gmssql "github.com/dolthub/go-mysql-server/sql"
 	vitessmysql "github.com/dolthub/vitess/go/mysql"
+	"github.com/virtual-db/mysql-driver/internal/bridge"
+	. "github.com/virtual-db/mysql-driver/internal/gms/session"
 )
 
 // ---------------------------------------------------------------------------
@@ -85,21 +84,23 @@ func (s *stubEventBridge) SchemaLoaded(_ string, _ []string, _ string) {}
 func (s *stubEventBridge) SchemaInvalidated(_ string)                  {}
 
 // ---------------------------------------------------------------------------
-// buildSession — helper that invokes Builder and asserts a *Session is returned.
+// buildSession — helper that constructs a *Session via New().
 // ---------------------------------------------------------------------------
 
 func buildSession(t *testing.T, dbName string, events bridge.EventBridge, conn *vitessmysql.Conn, addr string) *Session {
 	t.Helper()
-	builder := Builder(dbName, events)
-	sess, err := builder(context.Background(), conn, addr)
-	if err != nil {
-		t.Fatalf("Builder returned unexpected error: %v", err)
+	connID := conn.ConnectionID
+	user := conn.User
+	if err := events.ConnectionOpened(connID, user, addr); err != nil {
+		t.Fatalf("ConnectionOpened returned unexpected error: %v", err)
 	}
-	s, ok := sess.(*Session)
-	if !ok {
-		t.Fatalf("Builder returned %T, want *session.Session", sess)
-	}
-	return s
+	base := gmssql.NewBaseSessionWithClientServer(
+		addr,
+		gmssql.Client{User: user, Address: addr},
+		connID,
+	)
+	base.SetCurrentDatabase(dbName)
+	return New(base, connID, events, nil)
 }
 
 // ---------------------------------------------------------------------------
