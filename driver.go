@@ -15,9 +15,9 @@ import (
 	core "github.com/virtual-db/core"
 
 	"github.com/virtual-db/mysql-driver/internal/auth"
-	"github.com/virtual-db/mysql-driver/internal/gms/engine"
-	"github.com/virtual-db/mysql-driver/internal/gms/rows"
+	"github.com/virtual-db/mysql-driver/internal/catalog"
 	"github.com/virtual-db/mysql-driver/internal/handler"
+	"github.com/virtual-db/mysql-driver/internal/rows"
 	"github.com/virtual-db/mysql-driver/internal/schema"
 )
 
@@ -72,7 +72,7 @@ func NewDriver(cfg Config, api core.DriverAPI) *Driver {
 	rawSchema := schema.NewSQLProvider(db, cfg.DBName)
 	wrappedSchema := schema.NewNotifyingProvider(rawSchema, adapt)
 	rowProv := rows.NewGMSProvider(adapt)
-	gmsEngine := sqle.NewDefault(engine.NewDatabaseProvider(
+	gmsEngine := sqle.NewDefault(catalog.NewDatabaseProvider(
 		cfg.DBName, rowProv, wrappedSchema, db,
 	))
 
