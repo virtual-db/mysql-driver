@@ -1,21 +1,15 @@
 // Package driver — adapter.go
 //
-// This file owns the two adapter/wrapper types that support the Driver but are
+// This file owns the adapter/wrapper type that supports the Driver but is
 // not part of the driver lifecycle:
 //
 //   - apiAdapter: translates every bridge.EventBridge call to the corresponding
 //     core.DriverAPI call. It is the single boundary between the driver's
 //     internal packages and the vdb-core framework.
-//
-//   - noopServerEventListener: satisfies server.ServerEventListener with no-ops,
-//     passed to server.NewServer to suppress observability side-effects.
 package driver
 
 import (
-	"time"
-
 	core "github.com/virtual-db/core"
-	"github.com/dolthub/go-mysql-server/server"
 
 	"github.com/virtual-db/mysql-driver/internal/bridge"
 )
@@ -95,19 +89,3 @@ func (a *apiAdapter) SchemaLoaded(table string, cols []string, pkCol string) {
 func (a *apiAdapter) SchemaInvalidated(table string) {
 	a.api.SchemaInvalidated(table)
 }
-
-// ---------------------------------------------------------------------------
-// noopServerEventListener
-// ---------------------------------------------------------------------------
-
-// noopServerEventListener satisfies server.ServerEventListener with no-ops.
-// Passed to server.NewServer to suppress observability side-effects while
-// remaining explicit about the contract rather than relying on nil guards.
-type noopServerEventListener struct{}
-
-var _ server.ServerEventListener = noopServerEventListener{}
-
-func (noopServerEventListener) ClientConnected()                       {}
-func (noopServerEventListener) ClientDisconnected()                    {}
-func (noopServerEventListener) QueryStarted()                          {}
-func (noopServerEventListener) QueryCompleted(_ bool, _ time.Duration) {}
