@@ -14,7 +14,9 @@ import (
 )
 
 // ComQuery satisfies vitessmysql.Handler. Builds a *sql.Context from the
-// session, calls engine.Query directly, and spools rows to the callback.
+// session, fires the vdb.query.received pipeline (which may rewrite the
+// query), calls engine.Query, spools rows to the callback, and fires the
+// vdb.query.completed event when done.
 func (h *Handler) ComQuery(
 	ctx context.Context,
 	c *vitessmysql.Conn,
@@ -26,15 +28,57 @@ func (h *Handler) ComQuery(
 		return fmt.Errorf("no session for connection %d", c.ConnectionID)
 	}
 
+	connID := c.ConnectionID
+	database := sess.GetCurrentDatabase()
+
+	// Fire the query.received pipeline. The handler may rewrite the query;
+	// a non-nil error rejects the query before execution.
+	rewritten, err := h.events.QueryReceived(connID, query, database)
+	if err != nil {
+		return err
+	}
+	execQuery := query
+	if rewritten != "" {
+		execQuery = rewritten
+	}
+
 	sqlCtx := gmssql.NewContext(ctx, gmssql.WithSession(sess))
 
-	schema, rowIter, _, err := h.engine.Query(sqlCtx, query)
-	if err != nil {
-		return castError(err)
-	}
-	defer rowIter.Close(sqlCtx)
+	schema, rowIter, _, execErr := h.engine.Query(sqlCtx, execQuery)
 
-	return castError(spoolResult(sqlCtx, schema, rowIter, callback))
+	var rowsAffected int64
+	var spoolErr error
+
+	if execErr == nil {
+		defer rowIter.Close(sqlCtx)
+
+		// Wrap the callback to accumulate the affected-row count for
+		// the QueryCompleted event payload.
+		wrappedCallback := func(res *sqltypes.Result, more bool) error {
+			if res != nil {
+				if res.RowsAffected > 0 {
+					rowsAffected = int64(res.RowsAffected)
+				} else {
+					rowsAffected += int64(len(res.Rows))
+				}
+			}
+			return callback(res, more)
+		}
+
+		spoolErr = spoolResult(sqlCtx, schema, rowIter, wrappedCallback)
+	}
+
+	// Fire the query.completed event (fire-and-forget).
+	finalErr := execErr
+	if finalErr == nil {
+		finalErr = spoolErr
+	}
+	h.events.QueryCompleted(connID, query, rowsAffected, finalErr)
+
+	if execErr != nil {
+		return castError(execErr)
+	}
+	return castError(spoolErr)
 }
 
 // ComMultiQuery satisfies vitessmysql.Handler. Executes the first statement

@@ -136,6 +136,15 @@ func (t *Table) fetchFromSource(ctx *gmssql.Context) ([]gmssql.Row, error) {
 		if err := dbRows.Scan(ptrs...); err != nil {
 			return nil, fmt.Errorf("catalog: scan row from %q.%q: %w", t.dbName, t.name, err)
 		}
+		// The Go MySQL driver returns string-family columns (VARCHAR, CHAR,
+		// TEXT, etc.) as []byte when scanning into interface{}. Convert them
+		// to string here so that values survive JSON round-trips through
+		// out-of-process plugins without being base64-encoded by encoding/json.
+		for i, v := range vals {
+			if b, ok := v.([]byte); ok {
+				vals[i] = string(b)
+			}
+		}
 		row := make(gmssql.Row, len(cols))
 		copy(row, vals)
 		result = append(result, row)
