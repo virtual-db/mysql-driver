@@ -62,6 +62,7 @@ func (s *stubEventBridge) RowUpdated(_ uint32, _ string, _, n map[string]any) (m
 func (s *stubEventBridge) RowDeleted(_ uint32, _ string, _ map[string]any) error { return nil }
 func (s *stubEventBridge) SchemaLoaded(_ string, _ []string, _ string)           {}
 func (s *stubEventBridge) SchemaInvalidated(_ string)                            {}
+func (s *stubEventBridge) TableTruncated(_ uint32, _ string) error               { return nil }
 
 // ---------------------------------------------------------------------------
 // stubChain — satisfies server.Chain for query-interceptor tests.

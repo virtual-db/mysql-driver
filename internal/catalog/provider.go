@@ -20,6 +20,9 @@ type DatabaseProvider struct {
 	schema schemapkg.Provider
 	db     *sql.DB
 
+	schemaMu     sync.RWMutex
+	schemaDeltas map[string]*SchemaDelta // virtual table name → delta
+
 	// aiMu guards aiTables. The auto-increment registry lives here so that the
 	// counter for each table is shared across all Table instances (which are
 	// created fresh on every GetTableInsensitive call). Without this, a second
@@ -43,6 +46,53 @@ func (p *DatabaseProvider) getOrCreateAI(table string) *autoIncrState {
 		p.aiTables[table] = ai
 	}
 	return ai
+}
+
+// deltaFor returns the SchemaDelta for table, creating it if absent.
+func (p *DatabaseProvider) deltaFor(table string) *SchemaDelta {
+	p.schemaMu.Lock()
+	defer p.schemaMu.Unlock()
+	if p.schemaDeltas == nil {
+		p.schemaDeltas = make(map[string]*SchemaDelta)
+	}
+	d, ok := p.schemaDeltas[table]
+	if !ok {
+		d = newSchemaDelta()
+		p.schemaDeltas[table] = d
+	}
+	return d
+}
+
+// peekDelta returns the SchemaDelta for table if one exists, or nil.
+// Does not create a new delta.
+func (p *DatabaseProvider) peekDelta(table string) *SchemaDelta {
+	p.schemaMu.RLock()
+	defer p.schemaMu.RUnlock()
+	if p.schemaDeltas == nil {
+		return nil
+	}
+	return p.schemaDeltas[table]
+}
+
+// renameDelta moves the delta (and AI state) from oldName to newName.
+func (p *DatabaseProvider) renameDelta(oldName, newName string) {
+	p.schemaMu.Lock()
+	if p.schemaDeltas != nil {
+		if d, ok := p.schemaDeltas[oldName]; ok {
+			delete(p.schemaDeltas, oldName)
+			p.schemaDeltas[newName] = d
+		}
+	}
+	p.schemaMu.Unlock()
+
+	p.aiMu.Lock()
+	if p.aiTables != nil {
+		if ai, ok := p.aiTables[oldName]; ok {
+			delete(p.aiTables, oldName)
+			p.aiTables[newName] = ai
+		}
+	}
+	p.aiMu.Unlock()
 }
 
 var _ gmssql.DatabaseProvider = (*DatabaseProvider)(nil)

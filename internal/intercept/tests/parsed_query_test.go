@@ -61,6 +61,7 @@ func (s *stubEventBridgePQ) RowUpdated(_ uint32, _ string, _, n map[string]any) 
 func (s *stubEventBridgePQ) RowDeleted(_ uint32, _ string, _ map[string]any) error { return nil }
 func (s *stubEventBridgePQ) SchemaLoaded(_ string, _ []string, _ string)           {}
 func (s *stubEventBridgePQ) SchemaInvalidated(_ string)                            {}
+func (s *stubEventBridgePQ) TableTruncated(_ uint32, _ string) error               { return nil }
 
 // ---------------------------------------------------------------------------
 // stubChainPQ — satisfies server.Chain for parsed-query tests.

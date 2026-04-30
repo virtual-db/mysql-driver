@@ -67,6 +67,9 @@ func (stubRowsProvider) UpdateRow(_ *gmssql.Context, _ string, _, _ gmssql.Row, 
 func (stubRowsProvider) DeleteRow(_ *gmssql.Context, _ string, _ gmssql.Row, _ gmssql.Schema) error {
 	return nil
 }
+func (stubRowsProvider) TruncateRows(_ *gmssql.Context, _ string) (int, error) {
+	return 0, nil
+}
 
 // ---------------------------------------------------------------------------
 // DatabaseProvider

@@ -70,8 +70,8 @@ func (s *stubEventBridge) QueryCompleted(_ uint32, _ string, _ int64, _ error) {
 
 func (s *stubEventBridge) SchemaLoaded(_ string, _ []string, _ string) {}
 func (s *stubEventBridge) SchemaInvalidated(_ string)                  {}
+func (s *stubEventBridge) TableTruncated(_ uint32, _ string) error     { return nil }
 
-// ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
 

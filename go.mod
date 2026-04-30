@@ -3,7 +3,6 @@ module github.com/virtual-db/mysql-driver
 go 1.23.3
 
 require (
-
 	// go-sqlmock provides a database/sql mock used in mysqlengine/schema_test.go
 	// to unit-test the SchemaProvider without a real MySQL instance. DRV-001
 	// mandates exactly three direct production dependencies; go-sqlmock is
@@ -56,3 +55,5 @@ require (
 	gopkg.in/src-d/go-errors.v1 v1.0.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
+
+replace github.com/virtual-db/core => ../core

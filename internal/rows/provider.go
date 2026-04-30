@@ -3,8 +3,8 @@
 package rows
 
 import (
-	"github.com/virtual-db/mysql-driver/internal/bridge"
 	gmssql "github.com/dolthub/go-mysql-server/sql"
+	"github.com/virtual-db/mysql-driver/internal/bridge"
 )
 
 // Provider translates GMS row representations into map[string]any form and
@@ -28,6 +28,13 @@ type Provider interface {
 
 	// DeleteRow is called when GMS executes a DELETE for a single row.
 	DeleteRow(ctx *gmssql.Context, table string, row gmssql.Row, schema gmssql.Schema) error
+
+	// TruncateRows is called when TRUNCATE TABLE is executed. The implementation
+	// must clear all delta state for the table (both inserts and tombstones) so
+	// that subsequent reads return an empty result until new rows are inserted.
+	// Returns the number of rows that were removed (may be 0 when the count is
+	// not tracked).
+	TruncateRows(ctx *gmssql.Context, table string) (int, error)
 }
 
 // GMSProvider is the concrete Provider implementation backed by an EventBridge.
@@ -87,6 +94,14 @@ func (p *GMSProvider) DeleteRow(
 ) error {
 	record := RowToMap(row, SchemaColumns(schema))
 	return p.events.RowDeleted(connIDFromCtx(ctx), table, record)
+}
+
+// TruncateRows delegates to events.TableTruncated to clear delta state.
+func (p *GMSProvider) TruncateRows(ctx *gmssql.Context, table string) (int, error) {
+	if err := p.events.TableTruncated(connIDFromCtx(ctx), table); err != nil {
+		return 0, err
+	}
+	return 0, nil
 }
 
 // ---------------------------------------------------------------------------

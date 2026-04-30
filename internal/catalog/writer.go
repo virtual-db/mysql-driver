@@ -47,7 +47,7 @@ func (w *RowWriter) Insert(ctx *gmssql.Context, row gmssql.Row) error {
 
 	// Locate the primary-key column. If the schema has no PK we skip the
 	// collision check and fall through to a plain insert (no 1062 semantics).
-	pkIdx := pkColIndex(w.table.schema)
+	pkIdx := pkColIndex(w.table.Schema())
 	if pkIdx >= 0 && pkIdx < len(row) && row[pkIdx] != nil {
 		existing, err := w.table.findExistingByPK(ctx, pkIdx, row[pkIdx])
 		if err != nil {
@@ -63,7 +63,7 @@ func (w *RowWriter) Insert(ctx *gmssql.Context, row gmssql.Row) error {
 		}
 	}
 
-	_, err := w.table.rows.InsertRow(ctx, w.table.name, row, w.table.schema)
+	_, err := w.table.rows.InsertRow(ctx, w.table.name, row, w.table.Schema())
 	return err
 }
 
@@ -73,7 +73,7 @@ func (w *RowWriter) Update(ctx *gmssql.Context, old, new gmssql.Row) error {
 	if w.table.rows == nil {
 		return nil
 	}
-	_, err := w.table.rows.UpdateRow(ctx, w.table.name, old, new, w.table.schema)
+	_, err := w.table.rows.UpdateRow(ctx, w.table.name, old, new, w.table.Schema())
 	return err
 }
 
@@ -83,7 +83,7 @@ func (w *RowWriter) Delete(ctx *gmssql.Context, row gmssql.Row) error {
 	if w.table.rows == nil {
 		return nil
 	}
-	return w.table.rows.DeleteRow(ctx, w.table.name, row, w.table.schema)
+	return w.table.rows.DeleteRow(ctx, w.table.name, row, w.table.Schema())
 }
 
 // ---------------------------------------------------------------------------
