@@ -81,6 +81,7 @@ func (s *stubEventBridge) RowDeleted(_ uint32, _ string, _ map[string]any) error
 
 func (s *stubEventBridge) SchemaLoaded(_ string, _ []string, _ string) {}
 func (s *stubEventBridge) SchemaInvalidated(_ string)                  {}
+func (s *stubEventBridge) TableTruncated(_ uint32, _ string) error     { return nil }
 
 // ---------------------------------------------------------------------------
 // buildSession — helper that constructs a *Session via New().

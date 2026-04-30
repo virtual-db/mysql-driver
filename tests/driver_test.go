@@ -8,11 +8,11 @@ import (
 
 type stubCoreAPI struct{}
 
-func (s *stubCoreAPI) ConnectionOpened(_ uint32, _, _ string) error { return nil }
-func (s *stubCoreAPI) ConnectionClosed(_ uint32, _, _ string)       {}
-func (s *stubCoreAPI) TransactionBegun(_ uint32, _ bool) error      { return nil }
-func (s *stubCoreAPI) TransactionCommitted(_ uint32) error          { return nil }
-func (s *stubCoreAPI) TransactionRolledBack(_ uint32, _ string)     {}
+func (s *stubCoreAPI) ConnectionOpened(_ uint32, _, _ string) error            { return nil }
+func (s *stubCoreAPI) ConnectionClosed(_ uint32, _, _ string)                  {}
+func (s *stubCoreAPI) TransactionBegun(_ uint32, _ bool) error                 { return nil }
+func (s *stubCoreAPI) TransactionCommitted(_ uint32) error                     { return nil }
+func (s *stubCoreAPI) TransactionRolledBack(_ uint32, _ string)                {}
 func (s *stubCoreAPI) QueryReceived(_ uint32, query, _ string) (string, error) { return query, nil }
 func (s *stubCoreAPI) QueryCompleted(_ uint32, _ string, _ int64, _ error)     {}
 func (s *stubCoreAPI) RecordsSource(_ uint32, _ string, records []map[string]any) ([]map[string]any, error) {
@@ -30,6 +30,7 @@ func (s *stubCoreAPI) RecordUpdated(_ uint32, _ string, _, new map[string]any) (
 func (s *stubCoreAPI) RecordDeleted(_ uint32, _ string, _ map[string]any) error { return nil }
 func (s *stubCoreAPI) SchemaLoaded(_ string, _ []string, _ string)              {}
 func (s *stubCoreAPI) SchemaInvalidated(_ string)                               {}
+func (s *stubCoreAPI) TableTruncated(_ uint32, _ string) error                  { return nil }
 
 func newTestDriver() *driver.Driver {
 	return driver.NewDriver(driver.Config{

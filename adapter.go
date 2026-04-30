@@ -89,3 +89,7 @@ func (a *apiAdapter) SchemaLoaded(table string, cols []string, pkCol string) {
 func (a *apiAdapter) SchemaInvalidated(table string) {
 	a.api.SchemaInvalidated(table)
 }
+
+func (a *apiAdapter) TableTruncated(connID uint32, table string) error {
+	return a.api.TableTruncated(connID, table)
+}

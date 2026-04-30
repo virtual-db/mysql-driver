@@ -30,6 +30,9 @@ type Table struct {
 	// instances (which are created fresh on every GetTableInsensitive call).
 	// nil only in unit tests that construct Table directly.
 	ai *autoIncrState
+
+	delta    *SchemaDelta      // nil when no DDL has been issued for this table
+	provider *DatabaseProvider // nil only in unit tests
 }
 
 // autoIncrState holds the per-table auto-increment counter. It is allocated
@@ -46,6 +49,9 @@ var _ gmssql.InsertableTable = (*Table)(nil)
 var _ gmssql.UpdatableTable = (*Table)(nil)
 var _ gmssql.DeletableTable = (*Table)(nil)
 var _ gmssql.AutoIncrementTable = (*Table)(nil)
+var _ gmssql.AlterableTable = (*Table)(nil)
+var _ gmssql.IndexAlterableTable = (*Table)(nil)
+var _ gmssql.TruncateableTable = (*Table)(nil)
 
 // aiState returns the table's autoIncrState, creating a throwaway one if ai
 // is nil (unit-test path where no DatabaseProvider is wired up).
@@ -58,9 +64,14 @@ func (t *Table) aiState() *autoIncrState {
 	return t.ai
 }
 
-func (t *Table) Name() string                  { return t.name }
-func (t *Table) String() string                { return t.name }
-func (t *Table) Schema() gmssql.Schema         { return t.schema }
+func (t *Table) Name() string   { return t.name }
+func (t *Table) String() string { return t.name }
+func (t *Table) Schema() gmssql.Schema {
+	if t.delta == nil {
+		return t.schema
+	}
+	return applyDeltaToSchema(t.schema, t.delta)
+}
 func (t *Table) Collation() gmssql.CollationID { return gmssql.Collation_Default }
 
 // Partitions satisfies gmssql.Table. This implementation always has exactly one
@@ -78,11 +89,17 @@ func (t *Table) PartitionRows(ctx *gmssql.Context, _ gmssql.Partition) (gmssql.R
 		return nil, err
 	}
 
+	// Expand source rows to the virtual schema length, filling added-column
+	// positions with nil or their declared default.
+	if t.delta != nil {
+		rawRows = synthesiseAddedCols(rawRows, t.delta, t.Schema())
+	}
+
 	if t.rows == nil {
 		return rows.NewIter(rawRows), nil
 	}
 
-	merged, err := t.rows.FetchRows(ctx, t.name, rawRows, t.schema)
+	merged, err := t.rows.FetchRows(ctx, t.name, rawRows, t.Schema())
 	if err != nil {
 		return nil, err
 	}
@@ -92,7 +109,7 @@ func (t *Table) PartitionRows(ctx *gmssql.Context, _ gmssql.Partition) (gmssql.R
 		return nil, err
 	}
 
-	cols := rows.SchemaColumns(t.schema)
+	cols := rows.SchemaColumns(t.Schema())
 	sqlRows := make([]gmssql.Row, len(final))
 	for i, rec := range final {
 		sqlRows[i] = rows.MapToRow(rec, cols)
@@ -104,55 +121,90 @@ func (t *Table) PartitionRows(ctx *gmssql.Context, _ gmssql.Partition) (gmssql.R
 // If db is nil (e.g. in unit tests), it returns an empty row slice without
 // error so that higher-level code can still exercise the overlay logic.
 func (t *Table) fetchFromSource(ctx *gmssql.Context) ([]gmssql.Row, error) {
+	if t.delta != nil && t.delta.Created {
+		return nil, nil // no source backing; all rows come from row delta
+	}
+
+	// Resolve the name the source DB knows.
+	sourceName := t.name
+	if t.delta != nil && t.delta.SourceName != "" {
+		sourceName = t.delta.SourceName
+	}
+
 	if t.db == nil {
 		return nil, nil
 	}
 
-	cols := rows.SchemaColumns(t.schema)
+	cols := t.sourceColumns()
 	if len(cols) == 0 {
 		return nil, nil
 	}
 
-	quotedCols := make([]string, len(cols))
-	for i, c := range cols {
-		quotedCols[i] = "`" + c + "`"
-	}
-	query := "SELECT " + strings.Join(quotedCols, ", ") +
-		" FROM `" + t.dbName + "`.`" + t.name + "`"
+	query := "SELECT " + strings.Join(cols, ", ") +
+		" FROM `" + t.dbName + "`.`" + sourceName + "`"
 
 	dbRows, err := t.db.QueryContext(ctx, query)
 	if err != nil {
-		return nil, fmt.Errorf("catalog: fetch from %q.%q: %w", t.dbName, t.name, err)
+		return nil, fmt.Errorf("catalog: fetch from %q.%q: %w", t.dbName, sourceName, err)
 	}
 	defer dbRows.Close()
 
+	// Determine how many source columns the query returns (the non-added columns).
+	sourceColCount := len(cols)
 	var result []gmssql.Row
 	for dbRows.Next() {
-		vals := make([]any, len(cols))
-		ptrs := make([]any, len(cols))
+		vals := make([]any, sourceColCount)
+		ptrs := make([]any, sourceColCount)
 		for i := range vals {
 			ptrs[i] = &vals[i]
 		}
 		if err := dbRows.Scan(ptrs...); err != nil {
-			return nil, fmt.Errorf("catalog: scan row from %q.%q: %w", t.dbName, t.name, err)
+			return nil, fmt.Errorf("catalog: scan row from %q.%q: %w", t.dbName, sourceName, err)
 		}
-		// The Go MySQL driver returns string-family columns (VARCHAR, CHAR,
-		// TEXT, etc.) as []byte when scanning into interface{}. Convert them
-		// to string here so that values survive JSON round-trips through
-		// out-of-process plugins without being base64-encoded by encoding/json.
 		for i, v := range vals {
 			if b, ok := v.([]byte); ok {
 				vals[i] = string(b)
 			}
 		}
-		row := make(gmssql.Row, len(cols))
+		row := make(gmssql.Row, sourceColCount)
 		copy(row, vals)
 		result = append(result, row)
 	}
 	if err := dbRows.Err(); err != nil {
-		return nil, fmt.Errorf("catalog: rows error from %q.%q: %w", t.dbName, t.name, err)
+		return nil, fmt.Errorf("catalog: rows error from %q.%q: %w", t.dbName, sourceName, err)
 	}
 	return result, nil
+}
+
+// sourceColumns returns the SELECT column fragments for fetchFromSource.
+// Added columns are excluded. Renamed columns use `src AS virtual` syntax.
+// Dropped columns are excluded.
+func (t *Table) sourceColumns() []string {
+	var frags []string
+	for _, col := range t.schema {
+		name := col.Name
+		if t.delta == nil {
+			frags = append(frags, "`"+name+"`")
+			continue
+		}
+		if _, dropped := t.delta.DroppedCols[name]; dropped {
+			continue
+		}
+		// Find if this source column has been renamed to a virtual name.
+		virtualName := name
+		for vn, sn := range t.delta.RenamedCols {
+			if sn == name {
+				virtualName = vn
+				break
+			}
+		}
+		if virtualName != name {
+			frags = append(frags, "`"+name+"` AS `"+virtualName+"`")
+		} else {
+			frags = append(frags, "`"+name+"`")
+		}
+	}
+	return frags
 }
 
 // Inserter satisfies gmssql.InsertableTable.
@@ -310,3 +362,118 @@ func (s *autoIncrSetter) AcquireAutoIncrementLock(_ *gmssql.Context) (func(), er
 // Close satisfies gmssql.Closer (embedded in gmssql.AutoIncrementSetter).
 // No persistent state to flush.
 func (s *autoIncrSetter) Close(_ *gmssql.Context) error { return nil }
+
+// ---------------------------------------------------------------------------
+// DDL interfaces — gmssql.AlterableTable
+// ---------------------------------------------------------------------------
+
+func (t *Table) AddColumn(_ *gmssql.Context, col *gmssql.Column, order *gmssql.ColumnOrder) error {
+	if t.delta == nil {
+		t.delta = t.provider.deltaFor(t.name)
+	}
+	col.Source = t.name
+	t.delta.AddedCols = append(t.delta.AddedCols, *col)
+	return nil
+}
+
+func (t *Table) DropColumn(_ *gmssql.Context, colName string) error {
+	if t.delta == nil {
+		t.delta = t.provider.deltaFor(t.name)
+	}
+	// If the column was added virtually (not backed by the source DB), simply
+	// remove it from AddedCols — there is nothing to record in DroppedCols.
+	for i, c := range t.delta.AddedCols {
+		if c.Name == colName {
+			t.delta.AddedCols = append(t.delta.AddedCols[:i], t.delta.AddedCols[i+1:]...)
+			return nil
+		}
+	}
+	t.delta.DroppedCols[colName] = struct{}{}
+	return nil
+}
+
+func (t *Table) ModifyColumn(_ *gmssql.Context, colName string, col *gmssql.Column, order *gmssql.ColumnOrder) error {
+	if t.delta == nil {
+		t.delta = t.provider.deltaFor(t.name)
+	}
+	col.Source = t.name
+	t.delta.ModifiedCols[colName] = *col
+	return nil
+}
+
+// RenameColumn is a helper that tracks a column rename in the delta.
+// GMS routes RENAME COLUMN through ModifyColumn (via AlterableTable), but
+// this method is available for direct callers.
+func (t *Table) RenameColumn(_ *gmssql.Context, oldName, newName string) error {
+	if t.delta == nil {
+		t.delta = t.provider.deltaFor(t.name)
+	}
+	// If this column was added virtually (not in source), rename it in AddedCols.
+	for i, c := range t.delta.AddedCols {
+		if c.Name == oldName {
+			t.delta.AddedCols[i].Name = newName
+			return nil
+		}
+	}
+	// It is a source column. Follow the rename chain: if oldName was already
+	// renamed, the stored source name is the canonical original.
+	srcName := oldName
+	if existing, ok := t.delta.RenamedCols[oldName]; ok {
+		srcName = existing
+		delete(t.delta.RenamedCols, oldName)
+	}
+	t.delta.RenamedCols[newName] = srcName
+	return nil
+}
+
+// ---------------------------------------------------------------------------
+// DDL interfaces — gmssql.IndexAlterableTable
+// ---------------------------------------------------------------------------
+
+func (t *Table) CreateIndex(_ *gmssql.Context, idx gmssql.IndexDef) error {
+	if t.delta == nil {
+		t.delta = t.provider.deltaFor(t.name)
+	}
+	delete(t.delta.DroppedIndexes, idx.Name)
+	t.delta.AddedIndexes[idx.Name] = idx
+	return nil
+}
+
+func (t *Table) DropIndex(_ *gmssql.Context, idxName string) error {
+	if t.delta == nil {
+		t.delta = t.provider.deltaFor(t.name)
+	}
+	delete(t.delta.AddedIndexes, idxName)
+	t.delta.DroppedIndexes[idxName] = struct{}{}
+	return nil
+}
+
+func (t *Table) RenameIndex(_ *gmssql.Context, fromIndexName, toIndexName string) error {
+	if t.delta == nil {
+		t.delta = t.provider.deltaFor(t.name)
+	}
+	if idx, ok := t.delta.AddedIndexes[fromIndexName]; ok {
+		delete(t.delta.AddedIndexes, fromIndexName)
+		t.delta.AddedIndexes[toIndexName] = idx
+	}
+	if _, ok := t.delta.DroppedIndexes[fromIndexName]; ok {
+		delete(t.delta.DroppedIndexes, fromIndexName)
+		t.delta.DroppedIndexes[toIndexName] = struct{}{}
+	}
+	return nil
+}
+
+func (t *Table) GetIndexes(_ *gmssql.Context) ([]gmssql.Index, error) {
+	return nil, nil
+}
+
+// ---------------------------------------------------------------------------
+// DDL interfaces — gmssql.TruncateableTable
+// ---------------------------------------------------------------------------
+
+func (t *Table) Truncate(ctx *gmssql.Context) (int, error) {
+	if t.rows == nil {
+		return 0, nil
+	}
+	return t.rows.TruncateRows(ctx, t.name)
+}

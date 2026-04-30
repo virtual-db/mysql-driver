@@ -68,4 +68,9 @@ type EventBridge interface {
 	// SchemaInvalidated is called when a table's cached schema should be
 	// discarded and re-fetched on next access.
 	SchemaInvalidated(table string)
+
+	// TableTruncated is called when a TRUNCATE TABLE statement is executed.
+	// The implementation must clear all delta state for the table so that
+	// subsequent reads return an empty result until new rows are inserted.
+	TableTruncated(connID uint32, table string) error
 }

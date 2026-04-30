@@ -44,6 +44,7 @@ func (noopBridge) RowDeleted(_ uint32, _ string, _ map[string]any) error { retur
 
 func (noopBridge) SchemaLoaded(_ string, _ []string, _ string) {}
 func (noopBridge) SchemaInvalidated(_ string)                  {}
+func (noopBridge) TableTruncated(_ uint32, _ string) error     { return nil }
 
 // TestEventBridgeInterfaceShape is the compile-time contract test. The
 // noopBridge assignment above is the real assertion; this function exists so
