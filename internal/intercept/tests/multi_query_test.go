@@ -6,7 +6,7 @@ import (
 
 	vitessmysql "github.com/dolthub/vitess/go/mysql"
 
-	. "github.com/virtual-db/mysql-driver/internal/intercept"
+	. "github.com/virtual-db/vdb-mysql-driver/internal/intercept"
 )
 
 func TestMultiQuery_CallsQueryReceived(t *testing.T) {

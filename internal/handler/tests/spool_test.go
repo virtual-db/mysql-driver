@@ -9,7 +9,7 @@ import (
 	gmstypes "github.com/dolthub/go-mysql-server/sql/types"
 	"github.com/dolthub/vitess/go/sqltypes"
 
-	handler "github.com/virtual-db/mysql-driver/internal/handler"
+	handler "github.com/virtual-db/vdb-mysql-driver/internal/handler"
 )
 
 // mockRowIter implements gmssql.RowIter over a static slice of rows.

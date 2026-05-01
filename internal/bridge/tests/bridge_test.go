@@ -8,7 +8,7 @@ package bridge_test
 import (
 	"testing"
 
-	. "github.com/virtual-db/mysql-driver/internal/bridge"
+	. "github.com/virtual-db/vdb-mysql-driver/internal/bridge"
 )
 
 // noopBridge satisfies EventBridge with safe no-op implementations of every

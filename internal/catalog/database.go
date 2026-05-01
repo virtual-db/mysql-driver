@@ -5,8 +5,8 @@ import (
 	"fmt"
 
 	gmssql "github.com/dolthub/go-mysql-server/sql"
-	"github.com/virtual-db/mysql-driver/internal/rows"
-	intschema "github.com/virtual-db/mysql-driver/internal/schema"
+	"github.com/virtual-db/vdb-mysql-driver/internal/rows"
+	intschema "github.com/virtual-db/vdb-mysql-driver/internal/schema"
 )
 
 // Database implements gmssql.Database, serving a single logical schema backed

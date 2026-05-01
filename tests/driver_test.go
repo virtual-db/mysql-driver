@@ -3,7 +3,7 @@ package driver_test
 import (
 	"testing"
 
-	driver "github.com/virtual-db/mysql-driver"
+	driver "github.com/virtual-db/vdb-mysql-driver"
 )
 
 type stubCoreAPI struct{}

@@ -6,7 +6,7 @@ import (
 	vitessmysql "github.com/dolthub/vitess/go/mysql"
 	querypb "github.com/dolthub/vitess/go/vt/proto/query"
 
-	"github.com/virtual-db/mysql-driver/internal/auth"
+	"github.com/virtual-db/vdb-mysql-driver/internal/auth"
 )
 
 // wrongGetter satisfies vitessmysql.Getter but is NOT a *vdbGetter.

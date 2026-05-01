@@ -9,9 +9,9 @@
 package driver
 
 import (
-	core "github.com/virtual-db/core"
+	core "github.com/virtual-db/vdb-core"
 
-	"github.com/virtual-db/mysql-driver/internal/bridge"
+	"github.com/virtual-db/vdb-mysql-driver/internal/bridge"
 )
 
 // ---------------------------------------------------------------------------

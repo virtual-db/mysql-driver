@@ -8,7 +8,7 @@ import (
 	gmstypes "github.com/dolthub/go-mysql-server/sql/types"
 	querypb "github.com/dolthub/vitess/go/vt/proto/query"
 
-	handler "github.com/virtual-db/mysql-driver/internal/handler"
+	handler "github.com/virtual-db/vdb-mysql-driver/internal/handler"
 )
 
 func newCtxForSchema() *gmssql.Context {

@@ -6,7 +6,7 @@ import (
 
 	gmssql "github.com/dolthub/go-mysql-server/sql"
 
-	. "github.com/virtual-db/mysql-driver/internal/catalog"
+	. "github.com/virtual-db/vdb-mysql-driver/internal/catalog"
 )
 
 // ---------------------------------------------------------------------------

@@ -6,8 +6,8 @@ import (
 
 	gmssql "github.com/dolthub/go-mysql-server/sql"
 	vitessmysql "github.com/dolthub/vitess/go/mysql"
-	"github.com/virtual-db/mysql-driver/internal/bridge"
-	. "github.com/virtual-db/mysql-driver/internal/session"
+	"github.com/virtual-db/vdb-mysql-driver/internal/bridge"
+	. "github.com/virtual-db/vdb-mysql-driver/internal/session"
 )
 
 // ---------------------------------------------------------------------------
