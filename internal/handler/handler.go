@@ -9,9 +9,9 @@ import (
 	sqle "github.com/dolthub/go-mysql-server"
 	gmssql "github.com/dolthub/go-mysql-server/sql"
 
-	"github.com/virtual-db/mysql-driver/internal/auth"
-	"github.com/virtual-db/mysql-driver/internal/bridge"
-	"github.com/virtual-db/mysql-driver/internal/session"
+	"github.com/virtual-db/vdb-mysql-driver/internal/auth"
+	"github.com/virtual-db/vdb-mysql-driver/internal/bridge"
+	"github.com/virtual-db/vdb-mysql-driver/internal/session"
 )
 
 // Handler implements vitessmysql.Handler. It is the boundary between the

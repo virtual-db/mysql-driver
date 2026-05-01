@@ -3,9 +3,9 @@ package catalog_test
 import (
 	"testing"
 
-	intschema "github.com/virtual-db/mysql-driver/internal/schema"
+	intschema "github.com/virtual-db/vdb-mysql-driver/internal/schema"
 
-	"github.com/virtual-db/mysql-driver/internal/catalog"
+	"github.com/virtual-db/vdb-mysql-driver/internal/catalog"
 )
 
 func TestToGMSSchema_NotNull_IsNullableFalse(t *testing.T) {

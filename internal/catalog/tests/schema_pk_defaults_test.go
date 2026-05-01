@@ -3,8 +3,8 @@ package catalog_test
 import (
 	"testing"
 
-	"github.com/virtual-db/mysql-driver/internal/catalog"
-	intschema "github.com/virtual-db/mysql-driver/internal/schema"
+	"github.com/virtual-db/vdb-mysql-driver/internal/catalog"
+	intschema "github.com/virtual-db/vdb-mysql-driver/internal/schema"
 )
 
 func TestToGMSSchema_PrimaryKey_SetsPrimaryKeyTrue(t *testing.T) {

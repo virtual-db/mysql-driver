@@ -6,7 +6,7 @@ import (
 
 	sqlmock "github.com/DATA-DOG/go-sqlmock"
 
-	. "github.com/virtual-db/mysql-driver/internal/schema"
+	. "github.com/virtual-db/vdb-mysql-driver/internal/schema"
 )
 
 func TestGetSchema_MissingTable_ReturnsError(t *testing.T) {

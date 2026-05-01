@@ -4,7 +4,7 @@ import (
 	"context"
 	"testing"
 
-	. "github.com/virtual-db/mysql-driver/internal/intercept"
+	. "github.com/virtual-db/vdb-mysql-driver/internal/intercept"
 
 	vitessmysql "github.com/dolthub/vitess/go/mysql"
 	sqltypes "github.com/dolthub/vitess/go/sqltypes"

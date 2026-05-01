@@ -9,7 +9,7 @@ import (
 	gmstypes "github.com/dolthub/go-mysql-server/sql/types"
 	sqltypes "github.com/dolthub/vitess/go/sqltypes"
 
-	intschema "github.com/virtual-db/mysql-driver/internal/schema"
+	intschema "github.com/virtual-db/vdb-mysql-driver/internal/schema"
 )
 
 // ToGMSSchema converts a slice of ColumnDescriptors into a GMS sql.Schema.

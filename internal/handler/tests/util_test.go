@@ -7,7 +7,7 @@ import (
 	vitessmysql "github.com/dolthub/vitess/go/mysql"
 	querypb "github.com/dolthub/vitess/go/vt/proto/query"
 
-	handler "github.com/virtual-db/mysql-driver/internal/handler"
+	handler "github.com/virtual-db/vdb-mysql-driver/internal/handler"
 )
 
 func TestCastError_NilReturnsNil(t *testing.T) {

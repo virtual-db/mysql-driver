@@ -11,7 +11,7 @@ import (
 	"sync"
 
 	gmssql "github.com/dolthub/go-mysql-server/sql"
-	"github.com/virtual-db/mysql-driver/internal/rows"
+	"github.com/virtual-db/vdb-mysql-driver/internal/rows"
 )
 
 // Table implements gmssql.Table and the write interfaces InsertableTable,

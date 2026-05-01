@@ -7,8 +7,8 @@ import (
 	"sync"
 
 	gmssql "github.com/dolthub/go-mysql-server/sql"
-	rowspkg "github.com/virtual-db/mysql-driver/internal/rows"
-	schemapkg "github.com/virtual-db/mysql-driver/internal/schema"
+	rowspkg "github.com/virtual-db/vdb-mysql-driver/internal/rows"
+	schemapkg "github.com/virtual-db/vdb-mysql-driver/internal/schema"
 )
 
 // DatabaseProvider implements gmssql.DatabaseProvider and serves as the root

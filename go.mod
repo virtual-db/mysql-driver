@@ -1,4 +1,4 @@
-module github.com/virtual-db/mysql-driver
+module github.com/virtual-db/vdb-mysql-driver
 
 go 1.23.3
 
@@ -21,7 +21,7 @@ require (
 	// it is an unavoidable part of the GMS v0.20.x public API surface.
 	github.com/dolthub/vitess v0.0.0-20250512224608-8fb9c6ea092c
 	github.com/go-sql-driver/mysql v1.9.3
-	github.com/virtual-db/core v0.0.1-alpha.2
+	github.com/virtual-db/vdb-core v0.0.1-alpha.2
 )
 
 require (
@@ -56,4 +56,4 @@ require (
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
 
-replace github.com/virtual-db/core => ../core
+replace github.com/virtual-db/vdb-core => ../vdb-core

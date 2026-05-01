@@ -3,7 +3,7 @@ package rows_test
 import (
 	"testing"
 
-	. "github.com/virtual-db/mysql-driver/internal/rows"
+	. "github.com/virtual-db/vdb-mysql-driver/internal/rows"
 )
 
 // ---------------------------------------------------------------------------

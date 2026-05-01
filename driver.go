@@ -12,13 +12,13 @@ import (
 
 	sqle "github.com/dolthub/go-mysql-server"
 	vitessmysql "github.com/dolthub/vitess/go/mysql"
-	core "github.com/virtual-db/core"
+	core "github.com/virtual-db/vdb-core"
 
-	"github.com/virtual-db/mysql-driver/internal/auth"
-	"github.com/virtual-db/mysql-driver/internal/catalog"
-	"github.com/virtual-db/mysql-driver/internal/handler"
-	"github.com/virtual-db/mysql-driver/internal/rows"
-	"github.com/virtual-db/mysql-driver/internal/schema"
+	"github.com/virtual-db/vdb-mysql-driver/internal/auth"
+	"github.com/virtual-db/vdb-mysql-driver/internal/catalog"
+	"github.com/virtual-db/vdb-mysql-driver/internal/handler"
+	"github.com/virtual-db/vdb-mysql-driver/internal/rows"
+	"github.com/virtual-db/vdb-mysql-driver/internal/schema"
 )
 
 // Config holds the parameters for constructing a Driver.

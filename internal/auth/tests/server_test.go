@@ -6,7 +6,7 @@ import (
 
 	vitessmysql "github.com/dolthub/vitess/go/mysql"
 
-	"github.com/virtual-db/mysql-driver/internal/auth"
+	"github.com/virtual-db/vdb-mysql-driver/internal/auth"
 )
 
 func TestNew_NoTLS_DefaultsProbeTimeout(t *testing.T) {

@@ -5,8 +5,8 @@ import (
 
 	gmstypes "github.com/dolthub/go-mysql-server/sql/types"
 
-	"github.com/virtual-db/mysql-driver/internal/catalog"
-	intschema "github.com/virtual-db/mysql-driver/internal/schema"
+	"github.com/virtual-db/vdb-mysql-driver/internal/catalog"
+	intschema "github.com/virtual-db/vdb-mysql-driver/internal/schema"
 )
 
 func TestColumnTypeToGMS_Int_ReturnsInt32(t *testing.T) {

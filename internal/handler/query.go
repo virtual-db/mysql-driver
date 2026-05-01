@@ -10,7 +10,7 @@ import (
 
 	gmssql "github.com/dolthub/go-mysql-server/sql"
 
-	"github.com/virtual-db/mysql-driver/internal/session"
+	"github.com/virtual-db/vdb-mysql-driver/internal/session"
 )
 
 // ComQuery satisfies vitessmysql.Handler. Builds a *sql.Context from the
